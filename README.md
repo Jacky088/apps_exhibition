@@ -69,8 +69,7 @@ apps_exhibition/
 ├─ templates/                   # 前端页面展示模板
 └─ screenshot-preview-pc-app.png# 界面预览截图
 
-
-具体文件职责可根据源码进一步阅读和调整。
+>  具体文件职责可根据源码进一步阅读和调整。
 
 
 ## 开发与自定义
