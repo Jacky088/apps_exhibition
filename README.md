@@ -114,16 +114,6 @@ apps_exhibition/
 
 ---
 
-## 致谢
-
-本插件设计思路参考并基于：
-
-- [**wp_apps_exhibition**](https://github.com/wp_apps_exhibition)
-
-在此基础上进行修改与扩展，向原作者致敬 🙏  
-
----
-
 
 ## 许可证（License）
 
