@@ -81,19 +81,8 @@ wp-content/plugins/
 
 ## 界面预览
 
-如果仓库中存在截图，例如：
-
-```
-screenshot-preview-pc-app.png
-```
-
-你可以在 README 中加入预览图：
-
-```markdown
 ![Apps Exhibition 预览](./screenshot-preview-pc-app.png)
-```
 
----
 
 ## 项目结构
 
@@ -129,18 +118,12 @@ apps_exhibition/
 
 本插件设计思路参考并基于：
 
-- **wp_apps_exhibition**  
+- [**wp_apps_exhibition**](https://github.com/wp_apps_exhibition)
 
 在此基础上进行修改与扩展，向原作者致敬 🙏  
 
 ---
 
-## 版本与发布
-
-- 可在 GitHub **Releases** 页面中查看已发布版本及更新记录  
-- 建议使用最新稳定版本部署生产环境  
-
----
 
 ## 许可证（License）
 
@@ -149,12 +132,5 @@ apps_exhibition/
 
 ---
 
-## 反馈与贡献
-
-欢迎通过以下方式参与改进本插件：
-
-- 提交 Issue 反馈 Bug 或功能建议  
-- 提交 Pull Request 贡献代码  
-- Fork 到自己的仓库进行二次开发  
 
 如果这个插件对你有帮助，欢迎在 GitHub 上点一个 ⭐ 支持作者！
