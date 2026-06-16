@@ -43,17 +43,39 @@ jQuery(document).ready(function($) {
         }
     })();
 
-    // --------- 下载链接 添加/删除功能 ---------
+    // --------- 下载链接 添加/删除功能（限制最大3条） ---------
     (function() {
         const ADD_DOWNLOAD_BTN = '#add_download_button';
         const DOWNLOADS_CONTAINER = '#downloads_container';
         const DOWNLOAD_ITEM_CLASS = '.download-item';
         const REMOVE_DOWNLOAD_BTN_CLASS = '.remove-download-button';
+        const MAX_DOWNLOAD_LINKS = 3;
 
         if (!$(ADD_DOWNLOAD_BTN).length || !$(DOWNLOADS_CONTAINER).length) return;
 
+        // 初始化当前下载链接数量
+        let currentCount = parseInt($(DOWNLOADS_CONTAINER).attr('data-download-count'), 10);
+        if (isNaN(currentCount) || currentCount < 1) {
+            currentCount = 1;
+            $(DOWNLOADS_CONTAINER).attr('data-download-count', currentCount);
+        }
+
+        // 根据当前数量更新按钮状态
+        function updateAddButtonState() {
+            if (currentCount >= MAX_DOWNLOAD_LINKS) {
+                $(ADD_DOWNLOAD_BTN).prop('disabled', true).addClass('disabled').attr('aria-disabled', 'true');
+            } else {
+                $(ADD_DOWNLOAD_BTN).prop('disabled', false).removeClass('disabled').removeAttr('aria-disabled');
+            }
+        }
+
+        updateAddButtonState();
+
         if (!$(ADD_DOWNLOAD_BTN).data('bound')) {
             $(ADD_DOWNLOAD_BTN).data('bound', true).on('click', function() {
+                if (currentCount >= MAX_DOWNLOAD_LINKS) {
+                    return; // 防止多点击
+                }
                 const item = $(
                     '<div class="download-item" style="margin-bottom:8px; display:flex; gap:8px; align-items:center;">' +
                     '<input type="url" name="download_url[]" placeholder="下载链接 URL" required style="width:60%;" />' +
@@ -62,15 +84,23 @@ jQuery(document).ready(function($) {
                     '</div>'
                 );
                 $(DOWNLOADS_CONTAINER).append(item);
+                currentCount++;
+                $(DOWNLOADS_CONTAINER).attr('data-download-count', currentCount);
+                updateAddButtonState();
             });
         }
 
-        // 使用事件代理，且防止重复绑定
+        // 删除下载链接按钮事件代理
         if (!$(DOWNLOADS_CONTAINER).data('boundRemove')) {
             $(DOWNLOADS_CONTAINER).data('boundRemove', true).on('click', REMOVE_DOWNLOAD_BTN_CLASS, function() {
                 const downloadItems = $(DOWNLOADS_CONTAINER).find(DOWNLOAD_ITEM_CLASS);
+
                 if (downloadItems.length > 1) {
                     $(this).closest(DOWNLOAD_ITEM_CLASS).remove();
+                    currentCount--;
+                    if (currentCount < 1) currentCount = 1; // 保持至少1条
+                    $(DOWNLOADS_CONTAINER).attr('data-download-count', currentCount);
+                    updateAddButtonState();
                 } else {
                     // 保留最后一个，清空内容
                     const $item = $(this).closest(DOWNLOAD_ITEM_CLASS);
@@ -177,9 +207,17 @@ jQuery(document).ready(function($) {
 
         // 上传海报按钮绑定
         const UPLOAD_POSTER_BTN = '#upload_home_poster';
+        const MAX_POSTERS = 10; // 最大海报数量限制
+
         if (!$(UPLOAD_POSTER_BTN).data('bound')) {
             $(UPLOAD_POSTER_BTN).data('bound', true).on('click', function(e) {
                 e.preventDefault();
+
+                const currentPosters = getPostersArray();
+                if (currentPosters.length >= MAX_POSTERS) {
+                    alert('最多只能上传 ' + MAX_POSTERS + ' 张海报');
+                    return;
+                }
 
                 if (uploadHomePosterFrame) {
                     uploadHomePosterFrame.open();
@@ -195,6 +233,12 @@ jQuery(document).ready(function($) {
                 uploadHomePosterFrame.on('select', function() {
                     const attachments = uploadHomePosterFrame.state().get('selection').toArray();
                     const currentPosters = getPostersArray();
+
+                    // 检查添加后是否超过限制
+                    if (currentPosters.length + attachments.length > MAX_POSTERS) {
+                        alert('添加这些图片将超过 ' + MAX_POSTERS + ' 张的限制');
+                        return;
+                    }
 
                     attachments.forEach(function(att) {
                         currentPosters.push({
