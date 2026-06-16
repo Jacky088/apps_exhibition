@@ -80,6 +80,12 @@ settings_errors( 'apps_exhibition_messages' );
 
     if ( isset( $_GET['action'], $_GET['id'] ) && $_GET['action'] === 'edit' ) {
         $id = intval( $_GET['id'] );
+
+        // 验证编辑操作的 nonce
+        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'apps_exhibition_edit_' . $id ) ) {
+            wp_die( __( '安全验证失败', 'apps-exhibition' ) );
+        }
+
         $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id=%d", $id ), ARRAY_A );
         if ( $row ) {
             $edit_mode = true;
@@ -116,7 +122,7 @@ settings_errors( 'apps_exhibition_messages' );
                     <th><?php esc_html_e( '应用图标', 'apps-exhibition' ); ?> <span style="color:red;">*</span></th>
                     <td>
                         <input type="hidden" name="app_icon" id="app_icon" value="<?php echo esc_attr( $edit_app['app_icon'] ?? '' ); ?>" required>
-                        <div id="app_icon_preview" style="width:100px; height:100px; background-size:contain; background-repeat:no-repeat; background-position:center center; border:1px solid #ddd; margin-bottom:10px; <?php if ( ! empty( $edit_app['app_icon'] ) ) echo 'background-image:url(\'' . esc_url( $edit_app['app_icon'] ) . '\')'; ?>"></div>
+                        <div id="app_icon_preview" style="width:100px; height:100px; background-size:contain; background-repeat:no-repeat; background-position:center center; border:1px solid #ddd; margin-bottom:10px; <?php if ( ! empty( $edit_app['app_icon'] ) ) echo esc_attr( 'background-image:url(' . esc_url( $edit_app['app_icon'] ) . ')' ); ?>"></div>
                         <button class="button" id="upload_icon_button"><?php esc_html_e( '上传图标', 'apps-exhibition' ); ?></button>
                         <button class="button" id="remove_icon_button"><?php esc_html_e( '移除图标', 'apps-exhibition' ); ?></button>
                         <p class="description"><?php esc_html_e( '请选择应用图标图片。', 'apps-exhibition' ); ?></p>
@@ -152,7 +158,7 @@ settings_errors( 'apps_exhibition_messages' );
                 <tr>
                     <th><?php esc_html_e( '下载链接', 'apps-exhibition' ); ?> <span style="color:red;">*</span></th>
                     <td>
-                        <div id="downloads_container">
+                        <div id="downloads_container" data-download-count="<?php echo count($edit_app['app_downloads']); ?>">
                             <?php
                             $downloads = is_array( $edit_app['app_downloads'] ?? null ) ? $edit_app['app_downloads'] : [];
                             if ( empty( $downloads ) ) {
@@ -168,7 +174,7 @@ settings_errors( 'apps_exhibition_messages' );
                             <?php endforeach; ?>
                         </div>
                         <button type="button" class="button" id="add_download_button" style="margin-top:6px;"><?php esc_html_e( '添加下载链接', 'apps-exhibition' ); ?></button>
-                        <p class="description"><?php esc_html_e( '请至少填写一个下载链接，支持多个下载按钮。', 'apps-exhibition' ); ?></p>
+                        <p class="description"><?php esc_html_e( '请至少填写一个下载链接，最多支持添加3条下载链接。', 'apps-exhibition' ); ?></p>
                     </td>
                 </tr>
             </tbody>
