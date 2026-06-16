@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: 应用页面插件
- * Plugin URI: https://github.com/Jacky088/app-wordpress
+ * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 1.8.3
+ * Version: 1.8.6.1
  * Author: 木木
- * Author URI: https://github.com/Jacky088/app-wordpress
+ * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
  */
 
@@ -19,7 +19,7 @@ if ( ! defined( 'APPS_EXHIBITION_PATH' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '1.8.3';
+    const VERSION = '1.8.6.1';
 
     private $plugin_path;
     private $plugin_url;
@@ -43,7 +43,9 @@ final class Apps_Exhibition {
 
         add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_scripts' ] );
-        add_action( 'wp_enqueue_scripts', [ $this, 'frontend_enqueue_scripts' ] );
+        
+        // 修改：改为注册脚本，在短代码中按需调用
+        add_action( 'wp_enqueue_scripts', [ $this, 'frontend_register_scripts' ] );
 
         // 处理筛选分类表单提交
         add_action( 'admin_post_apps_exhibition_save_filter_categories', [ $this, 'handle_filter_categories_form' ] );
@@ -116,7 +118,6 @@ final class Apps_Exhibition {
         return $this->default_platforms;
     }
 
-    // 现有处理筛选分类...
     public function handle_filter_categories_form() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( '无权限访问', 'apps-exhibition' ) );
@@ -138,11 +139,10 @@ final class Apps_Exhibition {
             $redirect_url = add_query_arg( 'message', 'cat_saved_error', $redirect_url );
         }
 
-        wp_redirect( $redirect_url );
+        wp_safe_redirect( $redirect_url );
         exit;
     }
 
-    // 现有处理平台分类...
     public function handle_platform_categories_form() {
         if ( ! current_user_can( 'manage_options' ) ) {
             wp_die( __( '无权限访问', 'apps-exhibition' ) );
@@ -164,7 +164,7 @@ final class Apps_Exhibition {
             $redirect_url = add_query_arg( 'message', 'platform_saved_error', $redirect_url );
         }
 
-        wp_redirect( $redirect_url );
+        wp_safe_redirect( $redirect_url );
         exit;
     }
 
@@ -191,13 +191,19 @@ final class Apps_Exhibition {
             return;
         }
 
-        wp_enqueue_media(); // For media uploader
+        wp_enqueue_media(); 
         wp_enqueue_style( 'apps-exhibition-admin-style', $this->plugin_url . 'assets/css/admin.css', [], self::VERSION );
         wp_enqueue_script( 'apps-exhibition-admin-script', $this->plugin_url . 'assets/js/admin.js', [ 'jquery' ], self::VERSION, true );
     }
 
-    public function frontend_enqueue_scripts() {
-        wp_enqueue_style( 'apps-exhibition-style', $this->plugin_url . 'assets/css/apps-exhibition.css', [], self::VERSION );
+    /**
+     * 优化：只注册样式，不直接加载，由 Shortcode 决定是否加载
+     */
+    public function frontend_register_scripts() {
+        wp_register_style( 'apps-exhibition-style', $this->plugin_url . 'assets/css/apps-exhibition.css', [], self::VERSION );
+        // 注册 Swiper
+        wp_register_style( 'swiper-css', 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css', [], '10' );
+        wp_register_script( 'swiper-js', 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js', [], '10', true );
     }
 }
 
@@ -205,29 +211,40 @@ global $apps_exhibition_plugin_instance;
 $apps_exhibition_plugin_instance = new Apps_Exhibition();
 
 /**
- * 新增后台处理首页海报保存逻辑，不绑定类，防止调用限制
+ * 首页海报保存逻辑
  */
 function save_home_posters() {
     if ( ! current_user_can( 'manage_options' ) ) wp_die( __( '无权限', 'apps-exhibition' ) );
 
     check_admin_referer( 'save_home_posters_nonce' );
 
-    // 传入是json字符串，decode为数组
     $posters_json = isset( $_POST['home_posters'] ) ? wp_unslash( $_POST['home_posters'] ) : '[]';
     $posters = json_decode( $posters_json, true );
 
-    if ( ! is_array( $posters ) ) {
+    // 增强的 JSON 错误处理
+    if ( json_last_error() !== JSON_ERROR_NONE || ! is_array( $posters ) ) {
+        error_log( 'Apps Exhibition: Invalid JSON in home_posters - ' . json_last_error_msg() );
         $posters = [];
     }
 
-    // 简单过滤无url的项
+    // 验证和清理海报数据
     $posters = array_filter( $posters, function($item) {
-        return isset($item['url']) && ! empty( $item['url'] );
+        if ( ! isset($item['url']) || empty( $item['url'] ) ) {
+            return false;
+        }
+        // 验证 URL 格式
+        if ( ! filter_var( $item['url'], FILTER_VALIDATE_URL ) ) {
+            error_log( 'Apps Exhibition: Invalid poster URL - ' . $item['url'] );
+            return false;
+        }
+        return true;
     });
+
+    // 限制最大海报数量
+    $posters = array_slice( $posters, 0, 10 );
 
     update_option( 'home_posters', $posters );
 
-    wp_redirect( add_query_arg( [ 'message' => 'home_posters_saved' ], wp_get_referer() ) );
+    wp_safe_redirect( add_query_arg( [ 'message' => 'home_posters_saved' ], wp_get_referer() ) );
     exit;
 }
-
