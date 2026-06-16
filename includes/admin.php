@@ -3,8 +3,6 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
  * 处理表单提交（新增 / 编辑应用）
- *
- * @return bool 返回操作成功与否
  */
 function apps_exhibition_handle_form() {
     global $wpdb, $apps_exhibition_plugin_instance;
@@ -49,6 +47,16 @@ function apps_exhibition_handle_form() {
         $text = sanitize_text_field( trim( $download_texts[ $i ] ?? '' ) );
 
         if ( ! empty( $url ) && ! empty( $text ) ) {
+            // 验证 URL 格式
+            if ( ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
+                add_settings_error( 'apps_exhibition_messages', 'error', sprintf( __( '第%d个下载链接格式无效。', 'apps-exhibition' ), $i + 1 ), 'error' );
+                return false;
+            }
+            // 限制最多3个下载链接
+            if ( count( $downloads ) >= 3 ) {
+                add_settings_error( 'apps_exhibition_messages', 'error', __( '最多只能添加3个下载链接。', 'apps-exhibition' ), 'error' );
+                return false;
+            }
             $downloads[] = [ 'url' => $url, 'text' => $text ];
             $has_valid_download = true;
         } elseif ( ! empty( $url ) || ! empty( $text ) ) {
@@ -93,6 +101,11 @@ function apps_exhibition_handle_form() {
 
     $formats = [ '%s', '%s', '%s', '%s', '%s', '%s' ];
 
+    // [优化] 定义清除缓存函数
+    $clear_cache = function() {
+        delete_transient( 'apps_exhibition_all_data_v' . Apps_Exhibition::VERSION );
+    };
+
     if ( $id > 0 ) {
         $updated = $wpdb->update( $table, $data, [ 'id' => $id ], $formats, [ '%d' ] );
         if ( $updated === false ) {
@@ -100,6 +113,7 @@ function apps_exhibition_handle_form() {
             add_settings_error( 'apps_exhibition_messages', 'error', __( '更新应用失败。', 'apps-exhibition' ), 'error' );
             return false;
         } else {
+            $clear_cache(); // 清除缓存
             add_settings_error( 'apps_exhibition_messages', 'updated', __( '更新应用成功！', 'apps-exhibition' ), 'updated' );
             return true;
         }
@@ -110,6 +124,7 @@ function apps_exhibition_handle_form() {
             add_settings_error( 'apps_exhibition_messages', 'error', __( '新增应用失败。', 'apps-exhibition' ), 'error' );
             return false;
         } else {
+            $clear_cache(); // 清除缓存
             add_settings_error( 'apps_exhibition_messages', 'inserted', __( '新增应用成功！', 'apps-exhibition' ), 'updated' );
             return true;
         }
@@ -117,7 +132,7 @@ function apps_exhibition_handle_form() {
 }
 
 /**
- * 处理添加/更新表单提交 — admin-post.php钩子回调
+ * 处理添加/更新表单提交
  */
 function apps_exhibition_handle_form_post() {
     if ( ! current_user_can( 'manage_options' ) ) {
@@ -128,13 +143,13 @@ function apps_exhibition_handle_form_post() {
 
     $result = apps_exhibition_handle_form();
 
-    // 获取跳转地址，默认回管理页面
-    $redirect_url = remove_query_arg( ['_wpnonce', 'message'], wp_get_referer() );
+    $redirect_url = wp_get_referer();
     if ( ! $redirect_url ) {
         $redirect_url = admin_url( 'admin.php?page=apps-exhibition' );
     }
 
-    // 加入消息参数根据结果和是新增还是编辑
+    $redirect_url = remove_query_arg( [ 'action', 'id', '_wpnonce', 'message' ], $redirect_url );
+
     if ( $result === true ) {
         $msg_code = ( isset( $_POST['app_id'] ) && intval( $_POST['app_id'] ) > 0 ) ? 'updated' : 'inserted';
     } else {
@@ -148,7 +163,7 @@ function apps_exhibition_handle_form_post() {
 }
 
 /**
- * 处理删除请求 — admin-post.php钩子回调
+ * 处理删除请求
  */
 function apps_exhibition_handle_delete() {
     if ( ! current_user_can( 'manage_options' ) ) {
@@ -166,6 +181,11 @@ function apps_exhibition_handle_delete() {
 
     $deleted = $wpdb->delete( $table, [ 'id' => $id ], [ '%d' ] );
 
+    // [优化] 清除缓存
+    if ( $deleted !== false ) {
+        delete_transient( 'apps_exhibition_all_data_v' . Apps_Exhibition::VERSION );
+    }
+
     $redirect_url = remove_query_arg( [ 'action', 'id', '_wpnonce', 'message' ], wp_get_referer() );
     if ( ! $redirect_url ) {
         $redirect_url = admin_url( 'admin.php?page=apps-exhibition' );
@@ -179,9 +199,6 @@ function apps_exhibition_handle_delete() {
     exit;
 }
 
-/**
- * 后台管理页面渲染，仅负责显示，所有增删改跳转独立处理
- */
 function apps_exhibition_admin_page() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_die( __( '无权限访问', 'apps-exhibition' ) );
@@ -194,8 +211,5 @@ function apps_exhibition_admin_page() {
     }
 
     $table = $wpdb->prefix . 'apps_exhibition';
-
-    // 以下调用模板时会显示提示
-
     include APPS_EXHIBITION_PATH . 'templates/admin-page.php';
 }
