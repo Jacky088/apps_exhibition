@@ -1,510 +1,526 @@
-/* apps-exhibition.css 完整优化版 - 适配 Img 懒加载 */
+/* apps-exhibition.css - 优化版
+ * 使用 #apps-exhibition-root 提高选择器优先级，避免 !important
+ * 移动端下载按钮默认可见
+ */
 
 /* === 重置样式，避免第三方主题干扰 === */
-.apps-exhibition-wrap,
-.apps-exhibition-wrap * {
-    box-sizing: border-box !important;
+#apps-exhibition-root,
+#apps-exhibition-root * {
+    box-sizing: border-box;
 }
 
-.apps-exhibition-wrap a {
-    text-decoration: none !important;
+#apps-exhibition-root a {
+    text-decoration: none;
 }
 
-.apps-exhibition-wrap img {
-    max-width: 100% !important;
-    height: auto !important;
-    display: block !important;
+#apps-exhibition-root img {
+    max-width: 100%;
+    height: auto;
+    display: block;
 }
 
-/* --- 全局容器和网格布局 --- */
-.apps-exhibition-wrap {
-    max-width: 1240px !important;
-    margin: 0 auto !important;
-    padding: 0 15px !important;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+/* --- 全局容器 --- */
+#apps-exhibition-root {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 0 15px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* --- 首页海报幻灯片样式 --- */
-.home-posters-container {
-    width: 100% !important;
-    max-width: 100% !important;
-    aspect-ratio: 16 / 6 !important;
-    margin-bottom: 20px !important;
-    position: relative !important;
-    border-radius: 12px !important;
-    overflow: hidden !important;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.15) !important;
+#apps-exhibition-root .home-posters-container {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 6;
+    margin-bottom: 20px;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.15);
 }
 
-.swiper-button-prev,
-.swiper-button-next {
-    display: none !important;
+#apps-exhibition-root .swiper-button-prev,
+#apps-exhibition-root .swiper-button-next {
+    display: none;
 }
 
-.home-posters-container .swiper-wrapper {
-    height: 100% !important;
+#apps-exhibition-root .home-posters-container .swiper-wrapper {
+    height: 100%;
 }
 
-.home-posters-container .swiper-slide {
-    height: 100% !important;
+#apps-exhibition-root .home-posters-container .swiper-slide {
+    height: 100%;
 }
 
-.home-posters-container .swiper-slide img {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    border-radius: 12px !important;
+#apps-exhibition-root .home-posters-container .swiper-slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
 }
 
-.home-posters-container .download-btn {
-    position: absolute !important;
-    top: 50% !important;
-    right: 20px !important;
-    transform: translateY(-50%) !important;
-    z-index: 20 !important;
+#apps-exhibition-root .home-posters-container .download-btn {
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    z-index: 20;
 }
 
-.home-posters-container.no-pointer-events .swiper-slide img {
-    pointer-events: none !important;
+#apps-exhibition-root .home-posters-container.no-pointer-events .swiper-slide img {
+    pointer-events: none;
 }
 
-.home-posters-container.no-pointer-events .swiper-slide {
-    pointer-events: none !important;
-    user-select: none !important;
+#apps-exhibition-root .home-posters-container.no-pointer-events .swiper-slide {
+    pointer-events: none;
+    user-select: none;
 }
 
-.home-posters-container.no-pointer-events .slide-download-btn-position {
-    pointer-events: auto !important;
-    user-select: auto !important;
+#apps-exhibition-root .home-posters-container.no-pointer-events .slide-download-btn-position {
+    pointer-events: auto;
+    user-select: auto;
 }
 
-.swiper-pagination {
-    bottom: 10px !important;
+#apps-exhibition-root .swiper-pagination {
+    bottom: 10px;
 }
 
 /* --- 筛选过滤器 --- */
-.apps-exhibition-filter-group {
-    margin-bottom: 20px !important;
-    width: 100% !important;
+#apps-exhibition-root .apps-exhibition-filter-group {
+    margin-bottom: 20px;
+    width: 100%;
 }
 
-.apps-exhibition-filter {
-    font-size: 16px !important;
-    user-select: none !important;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    overflow: visible !important;
-    gap: 8px !important;
-    margin: 0 !important;
-    padding: 0 !important;
+#apps-exhibition-root .apps-exhibition-filter {
+    font-size: 16px;
+    user-select: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    overflow: visible;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
 }
 
-.apps-exhibition-filter span {
-    margin: 0 10px 0 0 !important;
-    padding: 0 !important;
-    font-weight: bold !important;
-    color: #555 !important;
-    white-space: nowrap !important;
-    font-size: 16px !important;
-    flex-shrink: 0 !important;
-    line-height: 1.5 !important;
+#apps-exhibition-root .apps-exhibition-filter span {
+    margin: 0 10px 0 0;
+    padding: 0;
+    font-weight: bold;
+    color: #555;
+    white-space: nowrap;
+    font-size: 16px;
+    flex-shrink: 0;
+    line-height: 1.5;
 }
 
-.apps-exhibition-filter .filter-btn {
-    display: inline-block !important;
-    margin: 0 10px 6px 0 !important;
-    padding: 6px 14px !important;
-    background: #f0f2f5 !important;
-    color: #444 !important;
-    border-radius: 20px !important;
-    cursor: pointer !important;
-    transition: background-color 0.2s ease, color 0.2s ease !important;
-    font-size: 16px !important;
-    line-height: 1 !important;
-    white-space: nowrap !important;
-    user-select: none !important;
-    border: none !important;
-    text-decoration: none !important;
+#apps-exhibition-root .apps-exhibition-filter .filter-btn {
+    display: inline-block;
+    margin: 0 10px 6px 0;
+    padding: 6px 14px;
+    background: #f0f2f5;
+    color: #444;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    font-size: 16px;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    border: none;
+    text-decoration: none;
 }
 
-.apps-exhibition-filter .filter-btn.active,
-.apps-exhibition-filter .filter-btn:hover {
-    background: #007bff !important;
-    color: #fff !important;
-    text-decoration: none !important;
+#apps-exhibition-root .apps-exhibition-filter .filter-btn.active,
+#apps-exhibition-root .apps-exhibition-filter .filter-btn:hover {
+    background: #007bff;
+    color: #fff;
+    text-decoration: none;
 }
 
 /* --- 应用列表网格 --- */
-.apps-exhibition-list {
-    display: grid !important;
-    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)) !important;
-    gap: 15px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    list-style: none !important;
+#apps-exhibition-root .apps-exhibition-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 15px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
-/* 隐藏的应用项 - 使用 visibility 和 position 避免占据空间 */
-.apps-exhibition-item.hidden {
-    display: none !important;
+/* 隐藏的应用项 */
+#apps-exhibition-root .apps-exhibition-item.hidden {
+    display: none;
 }
 
 /* --- 应用卡片 --- */
-.apps-exhibition-item {
-    background: #fff !important;
-    border: 1px solid #e0e0e0 !important;
-    border-radius: 12px !important;
-    padding: 15px !important;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.06) !important;
-    transition: box-shadow 0.2s ease, transform 0.2s ease !important;
-    display: flex !important;
-    align-items: flex-start !important;
-    gap: 15px !important;
-    position: relative !important;
-    overflow: hidden !important;
-    min-height: 102px !important;
-    cursor: pointer !important;
-    margin: 0 !important;
-    flex-direction: row !important;
+#apps-exhibition-root .apps-exhibition-item {
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+    min-height: 102px;
+    cursor: pointer;
+    margin: 0;
+    flex-direction: row;
 }
-
-/* 移除之前的过渡效果样式 */
 
 /* 空结果提示 */
-.no-results-message {
-    grid-column: 1 / -1 !important;
-    text-align: center !important;
-    padding: 40px 20px !important;
-    color: #666 !important;
-    font-size: 16px !important;
-    margin: 0 !important;
+#apps-exhibition-root .no-results-message {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    font-size: 16px;
+    margin: 0;
 }
 
-.apps-exhibition-item:hover {
-    box-shadow: 0 8px 18px rgba(0,0,0,0.12) !important;
-    transform: translateY(-2px) !important;
+#apps-exhibition-root .apps-exhibition-item:hover {
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
 }
 
-/* --- 应用图标 (新版 Img 结构适配) --- */
-.app-icon-wrapper {
-    width: 72px !important;
-    height: 72px !important;
-    flex-shrink: 0 !important;
-    border-radius: 15px !important;
-    overflow: hidden !important;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background-color: #f0f0f0 !important; /* 加载前的占位背景色 */
+/* --- 应用图标 --- */
+#apps-exhibition-root .app-icon-wrapper {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin: 0;
+    padding: 0;
+    background-color: #f0f0f0;
 }
 
-.app-icon-img {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-    display: block !important;
-    border-radius: 0 !important; /* 父级已经圆角了 */
+#apps-exhibition-root .app-icon-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 0;
 }
 
 /* 文字内容区域 */
-.app-text-content {
-    flex: 1 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-start !important;
-    line-height: 1.3 !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    gap: 4px !important;
+#apps-exhibition-root .app-text-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    line-height: 1.3;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    gap: 4px;
 }
 
 /* 应用名称 */
-.app-name {
-    margin: 0 !important;
-    padding: 0 !important;
-    font-weight: 600 !important;
-    font-size: 18px !important;
-    color: #333 !important;
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    line-height: 1.2 !important;
-    flex-shrink: 0 !important;
+#apps-exhibition-root .app-name {
+    margin: 0;
+    padding: 0;
+    font-weight: 600;
+    font-size: 18px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    flex-shrink: 0;
 }
 
 /* 应用描述 - 限制2行 */
-.app-desc {
-    margin: 0 !important;
-    padding: 0 !important;
-    font-size: 14px !important;
-    color: #777 !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
-    line-height: 1.4 !important;
-    display: -webkit-box !important;
-    -webkit-line-clamp: 2 !important;
-    -webkit-box-orient: vertical !important;
-    word-break: break-word !important;
-    flex-shrink: 0 !important;
+#apps-exhibition-root .app-desc {
+    margin: 0;
+    padding: 0;
+    font-size: 14px;
+    color: #777;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+    flex-shrink: 0;
 }
 
 /* 平台标签 */
-.app-platform-tags {
-    margin: 6px 0 0 0 !important;
-    padding: 0 !important;
-    display: flex !important;
-    flex-wrap: wrap !important;
-    gap: 6px !important;
-    list-style: none !important;
+#apps-exhibition-root .app-platform-tags {
+    margin: 6px 0 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    list-style: none;
 }
 
-.app-platform-tags .platform-tag {
-    display: inline-block !important;
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.25) 0%, rgba(0, 86, 179, 0.35) 100%) !important;
-    color: #1a1a1a !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    padding: 3px 11px !important;
-    border-radius: 14px !important;
-    margin: 0 !important;
-    user-select: none !important;
-    line-height: 1.2 !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    border: 1px solid rgba(0, 123, 255, 0.35) !important;
-    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-    transition: all 0.3s ease !important;
-    white-space: nowrap !important;
+#apps-exhibition-root .app-platform-tags .platform-tag {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.25) 0%, rgba(0, 86, 179, 0.35) 100%);
+    color: #1a1a1a;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 11px;
+    border-radius: 14px;
+    margin: 0;
+    user-select: none;
+    line-height: 1.2;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 123, 255, 0.35);
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+    white-space: nowrap;
 }
 
-.app-platform-tags .platform-tag:hover {
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.4) 0%, rgba(0, 86, 179, 0.55) 100%) !important;
-    border-color: rgba(0, 123, 255, 0.6) !important;
-    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
-    color: #000 !important;
-    transform: translateY(-1px) !important;
+#apps-exhibition-root .app-platform-tags .platform-tag:hover {
+    background: linear-gradient(135deg, rgba(0, 123, 255, 0.4) 0%, rgba(0, 86, 179, 0.55) 100%);
+    border-color: rgba(0, 123, 255, 0.6);
+    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    color: #000;
+    transform: translateY(-1px);
 }
 
-/* 悬停操作区域 */
-.app-hover-action {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    background-color: rgba(255, 255, 255, 0.7) !important;
-    display: flex !important;
-    justify-content: flex-end !important;
-    align-items: center !important;
-    padding-right: 15px !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease !important;
-    border-radius: 12px !important;
-    pointer-events: none !important;
-    z-index: 5 !important;
-    margin: 0 !important;
+/* 悬停操作区域 - 桌面端 */
+#apps-exhibition-root .app-hover-action {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 15px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 5;
+    margin: 0;
 }
 
-.apps-exhibition-item:hover .app-hover-action {
-    opacity: 1 !important;
-    visibility: visible !important;
-    pointer-events: auto !important;
+#apps-exhibition-root .apps-exhibition-item:hover .app-hover-action {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
 }
 
 /* 下载按钮 */
-.download-btn {
-    background-color: #007bff !important;
-    color: #f0f0f0 !important;
-    text-decoration: none !important;
-    padding: 8px 20px !important;
-    border-radius: 8px !important;
-    font-weight: 500 !important;
-    font-size: 16px !important;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease !important;
-    white-space: nowrap !important;
-    box-shadow: 0 3px 8px rgba(0,123,255,0.3) !important;
-    min-width: 80px !important;
-    text-align: center !important;
-    margin-left: 8px !important;
-    border: none !important;
-    cursor: pointer !important;
-    display: inline-block !important;
-    line-height: 1.4 !important;
+#apps-exhibition-root .download-btn {
+    background-color: #007bff;
+    color: #f0f0f0;
+    text-decoration: none;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 16px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 3px 8px rgba(0,123,255,0.3);
+    min-width: 80px;
+    text-align: center;
+    margin-left: 8px;
+    border: none;
+    cursor: pointer;
+    display: inline-block;
+    line-height: 1.4;
 }
 
-.download-btn:first-child {
-    margin-left: 0 !important;
+#apps-exhibition-root .download-btn:first-child {
+    margin-left: 0;
 }
 
-.download-btn:hover,
-.download-btn:focus {
-    background-color: #004d99 !important;
-    color: #ffffff !important;
-    box-shadow: 0 5px 12px rgba(0, 77, 153, 0.6) !important;
-    outline: none !important;
-    text-decoration: none !important;
+#apps-exhibition-root .download-btn:hover,
+#apps-exhibition-root .download-btn:focus {
+    background-color: #004d99;
+    color: #ffffff;
+    box-shadow: 0 5px 12px rgba(0, 77, 153, 0.6);
+    outline: none;
+    text-decoration: none;
 }
 
-.download-btn.download-btn-disabled {
-    background-color: #ced4da !important;
-    color: #6c757d !important;
-    cursor: not-allowed !important;
-    box-shadow: none !important;
+#apps-exhibition-root .download-btn.download-btn-disabled {
+    background-color: #ced4da;
+    color: #6c757d;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
-/* --- 移动端适配 (768px以下) --- */
+/* =============================================
+   移动端适配 (768px以下)
+   - 下载按钮默认可见，不依赖 hover
+   ============================================= */
 @media (max-width: 768px) {
     /* 海报容器移动端适配 */
-    .home-posters-container {
-        aspect-ratio: 16 / 9 !important;
-        margin-bottom: 15px !important;
+    #apps-exhibition-root .home-posters-container {
+        aspect-ratio: 16 / 9;
+        margin-bottom: 15px;
     }
 
     /* 应用列表单列显示 */
-    .apps-exhibition-list {
-        grid-template-columns: 1fr !important;
-        gap: 12px !important;
+    #apps-exhibition-root .apps-exhibition-list {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
 
     /* 卡片内边距调整 */
-    .apps-exhibition-item {
-        padding: 12px !important;
-        min-height: 86px !important;
+    #apps-exhibition-root .apps-exhibition-item {
+        padding: 12px;
+        min-height: auto;
+        flex-wrap: wrap;
     }
 
-    /* 图标尺寸调整 - 适配新的 Wrapper */
-    .app-icon-wrapper {
-        width: 56px !important;
-        height: 56px !important;
-        border-radius: 12px !important;
+    /* 图标尺寸调整 */
+    #apps-exhibition-root .app-icon-wrapper {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
     }
 
     /* 应用名称字体调整 */
-    .app-name {
-        font-size: 16px !important;
+    #apps-exhibition-root .app-name {
+        font-size: 16px;
     }
 
     /* 应用描述字体调整 */
-    .app-desc {
-        font-size: 13px !important;
-        line-height: 1.3 !important;
+    #apps-exhibition-root .app-desc {
+        font-size: 13px;
+        line-height: 1.3;
     }
 
     /* 平台标签间距调整 */
-    .app-platform-tags {
-        margin-top: 5px !important;
-        gap: 5px !important;
+    #apps-exhibition-root .app-platform-tags {
+        margin-top: 5px;
+        gap: 5px;
     }
 
-    .app-platform-tags .platform-tag {
-        font-size: 11px !important;
-        padding: 2px 9px !important;
+    #apps-exhibition-root .app-platform-tags .platform-tag {
+        font-size: 11px;
+        padding: 2px 9px;
     }
 
-    /* 移动端取消悬停效果 */
-    .apps-exhibition-item:hover {
-        transform: none !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.06) !important;
+    /* 移动端取消 hover 动画 */
+    #apps-exhibition-root .apps-exhibition-item:hover {
+        transform: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
     }
 
-    /* 悬浮按钮调整 */
-    .app-hover-action {
-        padding-right: 12px !important;
+    /* 移动端：下载按钮始终可见，不再依赖 hover */
+    #apps-exhibition-root .app-hover-action {
+        position: relative;
+        top: auto;
+        left: auto;
+        width: 100%;
+        height: auto;
+        background-color: transparent;
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        padding: 8px 0 0 0;
+        justify-content: flex-start;
+        border-radius: 0;
+        flex-basis: 100%;
     }
 
-    .app-hover-action .download-btn {
-        padding: 6px 12px !important;
-        font-size: 14px !important;
-        min-width: 60px !important;
-        margin-left: 6px !important;
+    #apps-exhibition-root .app-hover-action .download-btn {
+        padding: 6px 12px;
+        font-size: 14px;
+        min-width: 60px;
+        margin-left: 6px;
     }
 
-    .app-hover-action .download-btn:first-child {
-        margin-left: 0 !important;
+    #apps-exhibition-root .app-hover-action .download-btn:first-child {
+        margin-left: 0;
     }
 
     /* 筛选按钮调整 */
-    .apps-exhibition-filter {
-        gap: 6px !important;
+    #apps-exhibition-root .apps-exhibition-filter {
+        gap: 6px;
     }
 
-    .apps-exhibition-filter span {
-        font-size: 15px !important;
+    #apps-exhibition-root .apps-exhibition-filter span {
+        font-size: 15px;
     }
 
-    .apps-exhibition-filter .filter-btn {
-        font-size: 15px !important;
-        padding: 5px 12px !important;
+    #apps-exhibition-root .apps-exhibition-filter .filter-btn {
+        font-size: 15px;
+        padding: 5px 12px;
     }
 }
 
 /* --- 平板适配 (769px - 1024px) --- */
 @media (min-width: 769px) and (max-width: 1024px) {
-    .apps-exhibition-list {
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 15px !important;
+    #apps-exhibition-root .apps-exhibition-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
     }
 
-    .apps-exhibition-wrap {
-        padding: 0 20px !important;
+    #apps-exhibition-root {
+        padding: 0 20px;
     }
 }
 
 /* --- 小屏幕移动端适配 (480px以下) --- */
 @media (max-width: 480px) {
-    .apps-exhibition-wrap {
-        padding: 0 10px !important;
+    #apps-exhibition-root {
+        padding: 0 10px;
     }
 
-    .apps-exhibition-list {
-        gap: 10px !important;
+    #apps-exhibition-root .apps-exhibition-list {
+        gap: 10px;
     }
 
-    .apps-exhibition-item {
-        padding: 10px !important;
-        gap: 12px !important;
+    #apps-exhibition-root .apps-exhibition-item {
+        padding: 10px;
+        gap: 12px;
     }
 
-    /* 图标尺寸调整 - 适配新的 Wrapper */
-    .app-icon-wrapper {
-        width: 50px !important;
-        height: 50px !important;
+    #apps-exhibition-root .app-icon-wrapper {
+        width: 50px;
+        height: 50px;
     }
 
-    .app-name {
-        font-size: 15px !important;
+    #apps-exhibition-root .app-name {
+        font-size: 15px;
     }
 
-    .app-desc {
-        font-size: 12px !important;
+    #apps-exhibition-root .app-desc {
+        font-size: 12px;
     }
 
-    .app-platform-tags .platform-tag {
-        font-size: 10px !important;
-        padding: 2px 8px !important;
+    #apps-exhibition-root .app-platform-tags .platform-tag {
+        font-size: 10px;
+        padding: 2px 8px;
     }
 
-    .apps-exhibition-filter span {
-        font-size: 14px !important;
+    #apps-exhibition-root .apps-exhibition-filter span {
+        font-size: 14px;
     }
 
-    .apps-exhibition-filter .filter-btn {
-        font-size: 14px !important;
-        padding: 4px 10px !important;
+    #apps-exhibition-root .apps-exhibition-filter .filter-btn {
+        font-size: 14px;
+        padding: 4px 10px;
     }
 }
 
 /* --- 超大屏幕适配 (1440px以上) --- */
 @media (min-width: 1440px) {
-    .apps-exhibition-wrap {
-        max-width: 1400px !important;
+    #apps-exhibition-root {
+        max-width: 1400px;
     }
 
-    .apps-exhibition-list {
-        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)) !important;
-        gap: 18px !important;
+    #apps-exhibition-root .apps-exhibition-list {
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 18px;
     }
 }

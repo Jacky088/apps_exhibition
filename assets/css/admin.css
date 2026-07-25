@@ -1,61 +1,496 @@
-/* 应用展示插件后台样式 */
+/* 应用展示插件后台样式 v2.0.2 */
 
-body.wp-admin .wrap h1,
-body.wp-admin .wrap h2 {
-    color: #0073aa;
+/* === 工具栏 === */
+.ae-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 0;
+    flex-wrap: wrap;
 }
 
-#app_icon_preview {
-    width: 100px;
-    height: 100px;
+.ae-btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 14px;
+    height: 32px;
+    line-height: 32px;
+    font-size: 13px;
+}
+
+.ae-bulk-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    height: 32px;
+    line-height: 32px;
+    padding: 0 12px;
+    color: #a00;
+    border-color: #a00;
+}
+
+.ae-bulk-delete-btn:hover:not(:disabled) {
+    background: #a00;
+    color: #fff;
+    border-color: #a00;
+}
+
+.ae-bulk-delete-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* 排序分类选择器 */
+.ae-sort-category-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+}
+
+.ae-sort-category-select label {
+    font-size: 13px;
+    color: #555;
+    white-space: nowrap;
+}
+
+.ae-sort-category-select select {
+    min-width: 150px;
+    height: 32px;
+}
+
+/* 搜索框 */
+.ae-search-box {
+    margin-left: auto;
+}
+
+.ae-search-box input {
+    padding: 5px 12px;
+    min-width: 180px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    height: 32px;
+    font-size: 13px;
+}
+
+/* === 排序提示 === */
+.ae-sort-hint {
+    margin: 10px 0;
+    padding: 8px 14px;
+    background: #e8f4fd;
+    border: 1px solid #c3ddf1;
+    border-radius: 6px;
+    color: #1d5f8a;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ae-sort-hint .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: #007cba;
+}
+
+/* === 应用列表表格 === */
+.ae-apps-table {
+    border-collapse: collapse;
+    margin-top: 4px;
+}
+
+.ae-apps-table th,
+.ae-apps-table td {
+    vertical-align: middle;
+    padding: 8px 10px;
+}
+
+.ae-col-check { width: 35px; text-align: center; }
+.ae-col-sort { width: 30px; text-align: center; }
+.ae-col-icon { width: 50px; }
+.ae-col-name { width: 120px; font-weight: 600; }
+.ae-col-desc { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ae-col-platform { width: 150px; }
+.ae-col-category { width: 120px; }
+.ae-col-actions { width: 100px; white-space: nowrap; }
+
+.ae-col-icon img {
+    border-radius: 8px;
+    display: block;
+}
+
+.ae-drag-handle {
+    cursor: grab;
+    color: #ccc;
+    font-size: 18px;
+    transition: color 0.2s;
+}
+
+.ae-drag-handle:hover {
+    color: #333;
+}
+
+/* 排序模式下的拖拽手柄高亮 */
+.ae-sort-mode .ae-drag-handle {
+    color: #007cba;
+    cursor: grab;
+}
+
+/* 排序模式下禁用时隐藏拖拽手柄 */
+.ae-apps-table:not(.ae-sort-mode) .ae-drag-handle {
+    color: #ddd;
+    cursor: default;
+}
+
+/* 拖拽中的行 */
+.ae-apps-table tbody tr.ui-sortable-helper {
+    background: #f0f7ff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.ae-apps-table tbody tr.ui-sortable-placeholder {
+    visibility: visible !important;
+    background: #e8f4fd;
+    border: 2px dashed #007cba;
+    height: 52px;
+}
+
+/* 操作按钮 */
+.ae-col-actions .button-small {
+    padding: 0 6px;
+    min-height: 28px;
+    line-height: 26px;
+    margin-right: 4px;
+}
+
+.ae-col-actions .button-small .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: middle;
+    margin-top: -1px;
+}
+
+.ae-delete-btn {
+    color: #a00;
+    border-color: #a00;
+}
+
+.ae-delete-btn:hover {
+    background: #a00;
+    color: #fff;
+}
+
+/* 内联删除确认 */
+.ae-delete-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.ae-delete-confirm a {
+    color: #a00;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.ae-delete-confirm .ae-cancel-delete {
+    color: #666;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+/* 无数据 */
+.ae-no-apps td {
+    text-align: center;
+    padding: 40px;
+    color: #888;
+    font-size: 14px;
+}
+
+/* 搜索隐藏 / 分类隐藏 */
+.ae-apps-table tr.ae-search-hidden,
+.ae-apps-table tr.ae-category-hidden {
+    display: none;
+}
+
+/* === 模态框 === */
+.ae-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ae-modal {
+    background: #fff;
+    border-radius: 8px;
+    width: 680px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.ae-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.ae-modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: #1d2327;
+}
+
+.ae-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 4px 8px;
+    border-radius: 4px;
+    line-height: 1;
+}
+
+.ae-modal-close:hover {
+    background: #f0f0f0;
+    color: #000;
+}
+
+.ae-modal-body {
+    padding: 24px;
+}
+
+/* === 模态框表单 === */
+.ae-form-row {
+    margin-bottom: 18px;
+}
+
+.ae-form-row > label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #1d2327;
+    font-size: 13px;
+}
+
+.ae-form-row .required {
+    color: #d63638;
+}
+
+.ae-form-row input[type="text"],
+.ae-form-row input[type="url"],
+.ae-form-row textarea {
+    width: 100%;
+}
+
+.ae-form-row textarea {
+    resize: vertical;
+}
+
+.ae-icon-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ae-icon-preview {
+    width: 56px;
+    height: 56px;
     background-color: #f7f7f7;
     border: 1px solid #ddd;
-    border-radius: 10px;
+    border-radius: 12px;
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center center;
+    flex-shrink: 0;
+}
+
+.ae-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+}
+
+.ae-checkbox-group label {
+    font-weight: normal;
+    font-size: 13px;
+}
+
+/* 下载链接行 */
+.download-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
 }
 
 .download-item input[type="url"],
 .download-item input[type="text"] {
-    padding: 6px 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 3px;
-    box-sizing: border-box;
+    padding: 5px 8px;
+    font-size: 13px;
 }
 
-.download-item .remove-download-button {
-    margin-left: 6px;
-    background-color: #dc3232;
-    color: white;
-    border: none;
-    border-radius: 3px;
+.remove-download-button {
+    color: #a00;
     cursor: pointer;
-    font-weight: 700;
-    padding: 4px 8px;
+    padding: 0;
+    text-decoration: none;
 }
 
-.download-item .remove-download-button:hover {
-    background-color: #a00;
+.remove-download-button:hover {
+    color: #dc3232;
 }
 
-.form-table th {
-    width: 150px;
-    vertical-align: top;
+.remove-download-button .dashicons {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
 }
 
-/* 表格图片边框圆角 */
-.wp-list-table img {
-    border-radius: 6px;
+#add_download_button {
+    margin-top: 4px;
 }
 
-/* 提示信息样式 */
-.settings-error {
+.ae-form-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 16px;
+    border-top: 1px solid #e0e0e0;
     margin-top: 20px;
 }
 
-/* Styles for single filter row */
-.apps-exhibition-filter-group {
-    margin-bottom: 20px; /* Adjust spacing as needed */
+/* === 分类设置 - 重新设计 === */
+.ae-settings-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 20px;
+    max-width: 960px;
+}
+
+.ae-settings-card {
+    background: #fff;
+    border: 1px solid #e2e4e7;
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    overflow: hidden;
+}
+
+.ae-settings-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #fff 100%);
+    border-bottom: 1px solid #e2e4e7;
+}
+
+.ae-settings-card-header .dashicons {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+    color: #007cba;
+}
+
+.ae-settings-card-header h3 {
+    margin: 0;
+    font-size: 15px;
+    color: #1d2327;
+    font-weight: 600;
+}
+
+.ae-settings-desc {
+    padding: 12px 20px 0;
+    margin: 0;
+    font-size: 13px;
+    color: #666;
+}
+
+.ae-settings-card form {
+    padding: 12px 20px 20px;
+}
+
+.ae-settings-textarea {
+    width: 100%;
+    font-size: 13px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    border: 1px solid #dcdcde;
+    border-radius: 6px;
+    padding: 10px 12px;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.ae-settings-textarea:focus {
+    border-color: #007cba;
+    box-shadow: 0 0 0 1px #007cba;
+    outline: none;
+}
+
+.ae-settings-card-footer {
+    margin-top: 12px;
+}
+
+/* === Toast 提示 === */
+.ae-sort-toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    padding: 10px 20px;
+    background: #00a32a;
+    color: #fff;
+    border-radius: 6px;
+    font-size: 14px;
+    z-index: 99999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: ae-fade-in 0.3s;
+}
+
+.ae-sort-toast.ae-toast-error {
+    background: #d63638;
+}
+
+@keyframes ae-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* === 响应式 === */
+@media (max-width: 960px) {
+    .ae-settings-wrap {
+        grid-template-columns: 1fr;
+    }
+    .ae-modal {
+        width: 95vw;
+    }
+    .ae-toolbar {
+        flex-wrap: wrap;
+    }
+    .ae-sort-category-select {
+        margin-left: 0;
+    }
+    .ae-search-box {
+        margin-left: 0;
+        width: 100%;
+    }
+    .ae-search-box input {
+        width: 100%;
+    }
 }
