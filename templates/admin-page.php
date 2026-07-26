@@ -244,6 +244,9 @@ settings_errors( 'apps_exhibition_messages' );
     ?>
 
     <h2><?php esc_html_e( '首页海报管理', 'apps-exhibition' ); ?></h2>
+    <p class="description" style="margin-bottom: 12px; font-size: 13px; color: #666;">
+        <?php esc_html_e( '建议海报尺寸为 1920×720 像素（宽高比 16:6）。若上传图片尺寸不符，前端将自动居中裁切适配显示区域。', 'apps-exhibition' ); ?>
+    </p>
     <button type="button" class="button" id="upload_home_poster"><?php esc_html_e( '上传海报', 'apps-exhibition' ); ?></button>
 
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">

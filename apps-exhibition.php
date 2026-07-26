@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.3
+ * Version: 2.0.5
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -19,7 +19,7 @@ if ( ! defined( 'APPS_EXHIBITION_PATH' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.3';
+    const VERSION = '2.0.5';
 
     private static $instance = null;
     private $plugin_path;

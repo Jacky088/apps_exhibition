@@ -1,9 +1,13 @@
-/* apps-exhibition.css - 优化版
- * 使用 #apps-exhibition-root 提高选择器优先级，避免 !important
- * 移动端下载按钮默认可见
+/* apps-exhibition.css - v2.1
+ * 优化项：
+ * - PC端：下载按钮 hover 背景模糊浮现
+ * - 移动端：触摸点击显示下载按钮
+ * - 平台标签全部显示（不折叠）
+ * - 轮播导航箭头
+ * - aspect-ratio fallback 防止 CLS
  */
 
-/* === 重置样式，避免第三方主题干扰 === */
+/* === 重置样式 === */
 #apps-exhibition-root,
 #apps-exhibition-root * {
     box-sizing: border-box;
@@ -27,7 +31,9 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* --- 首页海报幻灯片样式 --- */
+/* ===========================================
+   首页海报幻灯片
+   =========================================== */
 #apps-exhibition-root .home-posters-container {
     width: 100%;
     max-width: 100%;
@@ -39,9 +45,12 @@
     box-shadow: 0 4px 18px rgba(0,0,0,0.15);
 }
 
-#apps-exhibition-root .swiper-button-prev,
-#apps-exhibition-root .swiper-button-next {
-    display: none;
+/* aspect-ratio fallback */
+@supports not (aspect-ratio: 16/6) {
+    #apps-exhibition-root .home-posters-container {
+        height: 0;
+        padding-bottom: 37.5%;
+    }
 }
 
 #apps-exhibition-root .home-posters-container .swiper-wrapper {
@@ -56,6 +65,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: center;
     border-radius: 12px;
 }
 
@@ -85,7 +95,38 @@
     bottom: 10px;
 }
 
-/* --- 筛选过滤器 --- */
+/* --- 轮播导航箭头 --- */
+#apps-exhibition-root .swiper-button-prev,
+#apps-exhibition-root .swiper-button-next {
+    display: flex;
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+}
+
+#apps-exhibition-root .swiper-button-prev::after,
+#apps-exhibition-root .swiper-button-next::after {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#apps-exhibition-root .home-posters-container:hover .swiper-button-prev,
+#apps-exhibition-root .home-posters-container:hover .swiper-button-next {
+    opacity: 1;
+}
+
+#apps-exhibition-root .swiper-button-prev:hover,
+#apps-exhibition-root .swiper-button-next:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* ===========================================
+   筛选过滤器
+   =========================================== */
 #apps-exhibition-root .apps-exhibition-filter-group {
     margin-bottom: 20px;
     width: 100%;
@@ -138,7 +179,9 @@
     text-decoration: none;
 }
 
-/* --- 应用列表网格 --- */
+/* ===========================================
+   应用列表网格
+   =========================================== */
 #apps-exhibition-root .apps-exhibition-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
@@ -148,12 +191,13 @@
     list-style: none;
 }
 
-/* 隐藏的应用项 */
 #apps-exhibition-root .apps-exhibition-item.hidden {
     display: none;
 }
 
-/* --- 应用卡片 --- */
+/* ===========================================
+   应用卡片
+   =========================================== */
 #apps-exhibition-root .apps-exhibition-item {
     background: #fff;
     border: 1px solid #e0e0e0;
@@ -172,6 +216,11 @@
     flex-direction: row;
 }
 
+#apps-exhibition-root .apps-exhibition-item:hover {
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+    transform: translateY(-2px);
+}
+
 /* 空结果提示 */
 #apps-exhibition-root .no-results-message {
     grid-column: 1 / -1;
@@ -180,11 +229,6 @@
     color: #666;
     font-size: 16px;
     margin: 0;
-}
-
-#apps-exhibition-root .apps-exhibition-item:hover {
-    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
-    transform: translateY(-2px);
 }
 
 /* --- 应用图标 --- */
@@ -211,6 +255,7 @@
 /* 文字内容区域 */
 #apps-exhibition-root .app-text-content {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -251,7 +296,7 @@
     flex-shrink: 0;
 }
 
-/* 平台标签 */
+/* --- 平台标签（全部显示，不折叠） --- */
 #apps-exhibition-root .app-platform-tags {
     margin: 6px 0 0 0;
     padding: 0;
@@ -263,8 +308,8 @@
 
 #apps-exhibition-root .app-platform-tags .platform-tag {
     display: inline-block;
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.25) 0%, rgba(0, 86, 179, 0.35) 100%);
-    color: #1a1a1a;
+    background: rgba(0, 123, 255, 0.1);
+    color: #1a5276;
     font-size: 12px;
     font-weight: 500;
     padding: 3px 11px;
@@ -272,50 +317,58 @@
     margin: 0;
     user-select: none;
     line-height: 1.2;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid rgba(0, 123, 255, 0.35);
-    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
+    border: 1px solid rgba(0, 123, 255, 0.25);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
     white-space: nowrap;
 }
 
 #apps-exhibition-root .app-platform-tags .platform-tag:hover {
-    background: linear-gradient(135deg, rgba(0, 123, 255, 0.4) 0%, rgba(0, 86, 179, 0.55) 100%);
-    border-color: rgba(0, 123, 255, 0.6);
-    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    color: #000;
-    transform: translateY(-1px);
+    background: rgba(0, 123, 255, 0.2);
+    border-color: rgba(0, 123, 255, 0.4);
+    color: #0d3b66;
 }
 
-/* 悬停操作区域 - 桌面端 */
+/* ===========================================
+   PC端：悬停显示下载按钮（背景模糊遮罩）
+   =========================================== */
 #apps-exhibition-root .app-hover-action {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     display: flex;
     justify-content: flex-end;
     align-items: center;
     padding-right: 15px;
+    gap: 8px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.3s ease, visibility 0.3s ease, background-color 0.3s ease;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
     border-radius: 12px;
     pointer-events: none;
     z-index: 5;
     margin: 0;
 }
 
+/* PC端 hover 显示 */
 #apps-exhibition-root .apps-exhibition-item:hover .app-hover-action {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
 }
 
-/* 下载按钮 */
+/* 移动端触摸激活（通过 JS 添加 .touch-active 类） */
+#apps-exhibition-root .apps-exhibition-item.touch-active .app-hover-action {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+/* --- 下载按钮 --- */
 #apps-exhibition-root .download-btn {
     background-color: #007bff;
     color: #f0f0f0;
@@ -323,28 +376,23 @@
     padding: 8px 20px;
     border-radius: 8px;
     font-weight: 500;
-    font-size: 16px;
+    font-size: 14px;
     transition: background-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
     white-space: nowrap;
-    box-shadow: 0 3px 8px rgba(0,123,255,0.3);
-    min-width: 80px;
+    box-shadow: 0 2px 6px rgba(0,123,255,0.25);
+    min-width: 70px;
     text-align: center;
-    margin-left: 8px;
     border: none;
     cursor: pointer;
     display: inline-block;
     line-height: 1.4;
 }
 
-#apps-exhibition-root .download-btn:first-child {
-    margin-left: 0;
-}
-
 #apps-exhibition-root .download-btn:hover,
 #apps-exhibition-root .download-btn:focus {
     background-color: #004d99;
     color: #ffffff;
-    box-shadow: 0 5px 12px rgba(0, 77, 153, 0.6);
+    box-shadow: 0 4px 10px rgba(0, 77, 153, 0.5);
     outline: none;
     text-decoration: none;
 }
@@ -356,15 +404,28 @@
     box-shadow: none;
 }
 
-/* =============================================
+/* ===========================================
    移动端适配 (768px以下)
-   - 下载按钮默认可见，不依赖 hover
-   ============================================= */
+   - 触摸点击显示下载按钮
+   - 平台标签全部显示
+   =========================================== */
 @media (max-width: 768px) {
     /* 海报容器移动端适配 */
     #apps-exhibition-root .home-posters-container {
         aspect-ratio: 16 / 9;
         margin-bottom: 15px;
+    }
+
+    @supports not (aspect-ratio: 16/9) {
+        #apps-exhibition-root .home-posters-container {
+            padding-bottom: 56.25%;
+        }
+    }
+
+    /* 移动端隐藏导航箭头 */
+    #apps-exhibition-root .swiper-button-prev,
+    #apps-exhibition-root .swiper-button-next {
+        display: none;
     }
 
     /* 应用列表单列显示 */
@@ -373,11 +434,29 @@
         gap: 12px;
     }
 
-    /* 卡片内边距调整 */
+    /* 卡片 */
     #apps-exhibition-root .apps-exhibition-item {
         padding: 12px;
         min-height: auto;
-        flex-wrap: wrap;
+    }
+
+    /* 移动端取消 hover 动效 */
+    #apps-exhibition-root .apps-exhibition-item:hover {
+        transform: none;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    }
+
+    /* 移动端 hover 不生效，但触摸激活时生效 */
+    #apps-exhibition-root .apps-exhibition-item:hover .app-hover-action {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    #apps-exhibition-root .apps-exhibition-item.touch-active .app-hover-action {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
     }
 
     /* 图标尺寸调整 */
@@ -409,38 +488,11 @@
         padding: 2px 9px;
     }
 
-    /* 移动端取消 hover 动画 */
-    #apps-exhibition-root .apps-exhibition-item:hover {
-        transform: none;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.06);
-    }
-
-    /* 移动端：下载按钮始终可见，不再依赖 hover */
-    #apps-exhibition-root .app-hover-action {
-        position: relative;
-        top: auto;
-        left: auto;
-        width: 100%;
-        height: auto;
-        background-color: transparent;
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
-        padding: 8px 0 0 0;
-        justify-content: flex-start;
-        border-radius: 0;
-        flex-basis: 100%;
-    }
-
+    /* 下载按钮移动端调整 */
     #apps-exhibition-root .app-hover-action .download-btn {
-        padding: 6px 12px;
-        font-size: 14px;
+        padding: 6px 14px;
+        font-size: 13px;
         min-width: 60px;
-        margin-left: 6px;
-    }
-
-    #apps-exhibition-root .app-hover-action .download-btn:first-child {
-        margin-left: 0;
     }
 
     /* 筛选按钮调整 */

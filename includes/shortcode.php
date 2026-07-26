@@ -53,9 +53,9 @@ function apps_exhibition_shortcode() {
     }
     sort( $categories_in_use );
 
-    // 默认选中第一个分类
-    if ( $filter_category === '' && ! empty( $categories_in_use ) ) {
-        $filter_category = $categories_in_use[0];
+    // 默认选中"全部"分类
+    if ( $filter_category === '' ) {
+        $filter_category = '__all__';
     }
 
     // 获取分类排序配置
@@ -119,24 +119,33 @@ function apps_exhibition_shortcode() {
                     <div class="swiper-slide" style="position:relative;">
                         <?php if ( $download_url ) : ?>
                             <a href="<?php echo esc_url( $download_url ); ?>" target="_blank" rel="noopener noreferrer" style="display:block; width:100%; height:100%; border-radius:12px; overflow:hidden; position:relative;">
-                                <img src="<?php echo esc_url( $poster['url'] ); ?>" loading="lazy" decoding="async" alt="<?php echo esc_attr( $download_text ?: __('海报', 'apps-exhibition') ); ?>" style="width:100%; height:100%; object-fit: cover; border-radius:12px;"/>
+                                <img src="<?php echo esc_url( $poster['url'] ); ?>" loading="lazy" decoding="async" alt="<?php echo esc_attr( $download_text ?: __('海报', 'apps-exhibition') ); ?>" style="width:100%; height:100%; object-fit: cover; object-position: center; border-radius:12px;"/>
                                 <?php if ( $download_text ) : ?>
                                     <span class="download-btn slide-download-btn-position" style="position:absolute; top:50%; right:20px; transform:translateY(-50%); z-index:20; pointer-events:auto;"><?php echo esc_html( $download_text ); ?></span>
                                 <?php endif; ?>
                             </a>
                         <?php else: ?>
-                            <img src="<?php echo esc_url( $poster['url'] ); ?>" loading="lazy" decoding="async" alt="<?php esc_attr_e('海报', 'apps-exhibition'); ?>" style="width:100%; height:100%; object-fit:cover; border-radius:12px;"/>
+                            <img src="<?php echo esc_url( $poster['url'] ); ?>" loading="lazy" decoding="async" alt="<?php esc_attr_e('海报', 'apps-exhibition'); ?>" style="width:100%; height:100%; object-fit:cover; object-position:center; border-radius:12px;"/>
                         <?php endif; ?>
                     </div>
                     <?php endforeach; ?>
                 </div>
                 <div class="swiper-pagination"></div>
+                <!-- 导航箭头 -->
+                <div class="swiper-button-prev"></div>
+                <div class="swiper-button-next"></div>
             </div>
         <?php endif; ?>
 
         <div class="apps-exhibition-filter-group">
             <div class="apps-exhibition-filter">
                 <span><?php esc_html_e( '筛选分类:', 'apps-exhibition' ); ?></span>
+                <!-- "全部"分类按钮 -->
+                <a class="filter-btn<?php echo ( $filter_category === '__all__' ) ? ' active' : ''; ?>"
+                   href="#"
+                   data-category="__all__"
+                   data-order=""
+                ><?php esc_html_e( '全部', 'apps-exhibition' ); ?></a>
                 <?php foreach ( $categories_in_use as $category ) : ?>
                     <a class="filter-btn<?php echo ( $filter_category === $category ) ? ' active' : ''; ?>"
                        href="#"
@@ -176,7 +185,7 @@ function apps_exhibition_shortcode() {
                         <?php if ( ! empty( $downloads ) ) : ?>
                             <?php foreach ( $downloads as $download ) :
                                 if ( ! empty( $download['url'] ) && ! empty( $download['text'] ) ) : ?>
-                                    <a href="<?php echo esc_url( $download['url'] ); ?>" target="_blank" rel="noopener noreferrer" class="download-btn" style="margin-left:8px;"><?php echo esc_html( $download['text'] ); ?></a>
+                                    <a href="<?php echo esc_url( $download['url'] ); ?>" target="_blank" rel="noopener noreferrer" class="download-btn"><?php echo esc_html( $download['text'] ); ?></a>
                             <?php endif; endforeach; ?>
                         <?php else : ?>
                             <span class="download-btn download-btn-disabled"><?php esc_html_e( '暂无下载', 'apps-exhibition' ); ?></span>
