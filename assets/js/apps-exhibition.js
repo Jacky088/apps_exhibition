@@ -27,12 +27,14 @@
         var appIcons = document.querySelectorAll(appIconSelectors);
         if (appIcons && appIcons.length) {
             appIcons.forEach(function(icon) {
-                icon.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                }, { passive: false });
-                icon.addEventListener('touchstart', function(e) {
-                    e.stopPropagation();
-                }, { passive: true });
+                ['click', 'pointerdown', 'touchstart'].forEach(function(eventName) {
+                    icon.addEventListener(eventName, function(e) {
+                        e.stopPropagation();
+                        if (eventName === 'click') {
+                            e.preventDefault();
+                        }
+                    }, { passive: false });
+                });
             });
         }
 
@@ -198,8 +200,10 @@
 
             cards.forEach(function(card) {
                 card.addEventListener('click', function(e) {
-                    // 如果点击的是下载按钮本身，不拦截
-                    if (e.target.closest('.download-btn')) return;
+                    // 如果点击的是下载按钮本身，或点击的是图标区域，不触发卡片展开
+                    if (e.target.closest('.download-btn') || e.target.closest('.app-icon-wrapper') || e.target.closest('.app-icon-img')) {
+                        return;
+                    }
 
                     if (currentActive === card) {
                         // 再次点击同一张卡片，收起
