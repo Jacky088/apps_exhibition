@@ -22,6 +22,20 @@
         var appItems = document.querySelectorAll('.apps-exhibition-item');
         var appsList = document.querySelector('.apps-exhibition-list');
 
+        // 禁用应用图标本身的点击/触摸行为，避免触发卡片点击或打开行为（适用于桌面和移动）
+        var appIconSelectors = '.app-icon-img, .app-icon-wrapper';
+        var appIcons = document.querySelectorAll(appIconSelectors);
+        if (appIcons && appIcons.length) {
+            appIcons.forEach(function(icon) {
+                icon.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                }, { passive: false });
+                icon.addEventListener('touchstart', function(e) {
+                    e.stopPropagation();
+                }, { passive: true });
+            });
+        }
+
         if (filterButtons.length > 0 && appItems.length > 0) {
 
             // 构建 id -> DOM 映射
