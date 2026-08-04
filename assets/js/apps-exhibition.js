@@ -38,6 +38,22 @@
             });
         }
 
+        // 捕获阶段在 document 上拦截位于图标区域的事件，优先于其他委托或第三方脚本，彻底阻止图片预览/放大逻辑
+        ['click', 'pointerdown', 'touchstart'].forEach(function(evt) {
+            document.addEventListener(evt, function(e) {
+                try {
+                    if (e.target && e.target.closest && e.target.closest('.app-icon-wrapper, .app-icon-img')) {
+                        e.preventDefault && e.preventDefault();
+                        e.stopImmediatePropagation && e.stopImmediatePropagation();
+                        e.stopPropagation && e.stopPropagation();
+                        return;
+                    }
+                } catch (err) {
+                    // ignore
+                }
+            }, true); // use capture to run before other handlers
+        });
+
         if (filterButtons.length > 0 && appItems.length > 0) {
 
             // 构建 id -> DOM 映射
