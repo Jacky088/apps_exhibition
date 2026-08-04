@@ -2,6 +2,64 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
+ * 尝试对用户输入的 URL 进行局部编码（path/query/fragment），以兼容包含中文或特殊字符的链接
+ * 返回编码后的 URL（或原始输入，当解析失败时）
+ */
+function sanitize_and_normalize_url( $url ) {
+    $url = trim( $url );
+    if ( $url === '' ) return $url;
+
+    $parts = @parse_url( $url );
+    if ( ! $parts || ! isset( $parts['scheme'] ) || ! isset( $parts['host'] ) ) {
+        return $url;
+    }
+
+    $normalized = '';
+    $normalized .= $parts['scheme'] . '://';
+
+    if ( isset( $parts['user'] ) ) {
+        $normalized .= $parts['user'];
+        if ( isset( $parts['pass'] ) ) {
+            $normalized .= ':' . $parts['pass'];
+        }
+        $normalized .= '@';
+    }
+
+    $normalized .= $parts['host'];
+    if ( isset( $parts['port'] ) ) {
+        $normalized .= ':' . $parts['port'];
+    }
+
+    if ( isset( $parts['path'] ) ) {
+        // 对 path 的每个段进行 rawurlencode，保留 '/'
+        $segments = explode( '/', $parts['path'] );
+        $segments = array_map( 'rawurlencode', $segments );
+        $normalized .= implode( '/', $segments );
+    }
+
+    if ( isset( $parts['query'] ) ) {
+        // 对 query 的键和值做编码
+        $pairs = explode( '&', $parts['query'] );
+        $encPairs = array();
+        foreach ( $pairs as $p ) {
+            if ( strpos( $p, '=' ) !== false ) {
+                list( $k, $v ) = explode( '=', $p, 2 );
+                $encPairs[] = rawurlencode( $k ) . '=' . rawurlencode( $v );
+            } else {
+                $encPairs[] = rawurlencode( $p );
+            }
+        }
+        $normalized .= '?' . implode( '&', $encPairs );
+    }
+
+    if ( isset( $parts['fragment'] ) ) {
+        $normalized .= '#' . rawurlencode( $parts['fragment'] );
+    }
+
+    return $normalized;
+}
+
+/**
  * 处理表单提交（新增 / 编辑应用）
  */
 function apps_exhibition_handle_form() {
@@ -67,7 +125,9 @@ function apps_exhibition_handle_form() {
         $text = sanitize_text_field( trim( $download_texts[ $i ] ?? '' ) );
 
         if ( ! empty( $url ) && ! empty( $text ) ) {
-            if ( ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
+            // 先对 URL 做兼容性处理（编码 path/query/fragment），再校验
+            $normalized_url = sanitize_and_normalize_url( $url );
+            if ( ! filter_var( $normalized_url, FILTER_VALIDATE_URL ) ) {
                 add_settings_error( 'apps_exhibition_messages', 'error', sprintf( __( '第%d个下载链接格式无效。', 'apps-exhibition' ), $i + 1 ), 'error' );
                 return false;
             }
@@ -75,7 +135,7 @@ function apps_exhibition_handle_form() {
                 add_settings_error( 'apps_exhibition_messages', 'error', __( '最多只能添加3个下载链接。', 'apps-exhibition' ), 'error' );
                 return false;
             }
-            $downloads[] = [ 'url' => $url, 'text' => $text ];
+            $downloads[] = [ 'url' => $normalized_url, 'text' => $text ];
             $has_valid_download = true;
         } elseif ( ! empty( $url ) || ! empty( $text ) ) {
             add_settings_error( 'apps_exhibition_messages', 'error', sprintf( __( '第%d个下载链接或按钮文字缺失，请填写完整或清除。', 'apps-exhibition' ), $i + 1 ), 'error' );
