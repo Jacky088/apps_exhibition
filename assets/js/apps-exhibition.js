@@ -56,6 +56,19 @@
 
         if (filterButtons.length > 0 && appItems.length > 0) {
 
+            // 移动端：将激活的筛选按钮滚动到可视区域
+            function scrollActiveFilterIntoView(activeBtn) {
+                if (window.innerWidth > 768) return;
+                var scrollWrap = activeBtn.closest('.filter-scroll');
+                if (!scrollWrap) return;
+                var btnLeft = activeBtn.offsetLeft;
+                var btnWidth = activeBtn.offsetWidth;
+                var wrapWidth = scrollWrap.clientWidth;
+                var scrollLeft = scrollWrap.scrollLeft;
+                var target = btnLeft - (wrapWidth / 2) + (btnWidth / 2);
+                scrollWrap.scrollTo({ left: target, behavior: 'smooth' });
+            }
+
             // 构建 id -> DOM 映射
             var itemsById = {};
             appItems.forEach(function(item) {
@@ -71,6 +84,7 @@
                 // 更新按钮激活状态
                 filterButtons.forEach(function(b) { b.classList.remove('active'); });
                 btn.classList.add('active');
+                scrollActiveFilterIntoView(btn);
 
                 // URL 联动
                 var url = new URL(window.location);

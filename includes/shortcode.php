@@ -139,20 +139,24 @@ function apps_exhibition_shortcode() {
 
         <div class="apps-exhibition-filter-group">
             <div class="apps-exhibition-filter">
-                <span><?php esc_html_e( '筛选分类:', 'apps-exhibition' ); ?></span>
-                <!-- "全部"分类按钮 -->
-                <a class="filter-btn<?php echo ( $filter_category === '__all__' ) ? ' active' : ''; ?>"
-                   href="#"
-                   data-category="__all__"
-                   data-order=""
-                ><?php esc_html_e( '全部', 'apps-exhibition' ); ?></a>
-                <?php foreach ( $categories_in_use as $category ) : ?>
-                    <a class="filter-btn<?php echo ( $filter_category === $category ) ? ' active' : ''; ?>"
-                       href="#"
-                       data-category="<?php echo esc_attr( $category ); ?>"
-                       data-order="<?php echo esc_attr( implode( ',', $sorted_apps_by_category[ $category ] ?? [] ) ); ?>"
-                    ><?php echo esc_html( $category ); ?></a>
-                <?php endforeach; ?>
+                <span class="filter-label"><?php esc_html_e( '筛选分类:', 'apps-exhibition' ); ?></span>
+                <div class="filter-scroll">
+                    <div class="filter-scroll-inner">
+                        <!-- "全部"分类按钮 -->
+                        <a class="filter-btn<?php echo ( $filter_category === '__all__' ) ? ' active' : ''; ?>"
+                           href="#"
+                           data-category="__all__"
+                           data-order=""
+                        ><?php esc_html_e( '全部', 'apps-exhibition' ); ?></a>
+                        <?php foreach ( $categories_in_use as $category ) : ?>
+                            <a class="filter-btn<?php echo ( $filter_category === $category ) ? ' active' : ''; ?>"
+                               href="#"
+                               data-category="<?php echo esc_attr( $category ); ?>"
+                               data-order="<?php echo esc_attr( implode( ',', $sorted_apps_by_category[ $category ] ?? [] ) ); ?>"
+                            ><?php echo esc_html( $category ); ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             </div>
         </div>
 
