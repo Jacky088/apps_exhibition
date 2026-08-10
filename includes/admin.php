@@ -2,8 +2,30 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 /**
+ * 对已编码的字符串先解码再编码，保证重复调用结果一致（幂等）。
+ *
+ * 直接 rawurlencode 会把用户粘贴的、已经编码过的 URL 二次编码
+ * （例如 %E4%B8%AD 变成 %25E4%25B8%25AD），导致链接失效。
+ */
+function apps_exhibition_encode_once( $value, $preserve = '' ) {
+    $decoded = rawurldecode( $value );
+    $encoded = rawurlencode( $decoded );
+
+    // 还原那些在该 URL 组件中具有语义、不应被编码的保留字符
+    $length = strlen( $preserve );
+    for ( $i = 0; $i < $length; $i++ ) {
+        $char = $preserve[ $i ];
+        $encoded = str_replace( rawurlencode( $char ), $char, $encoded );
+    }
+
+    return $encoded;
+}
+
+/**
  * 尝试对用户输入的 URL 进行局部编码（path/query/fragment），以兼容包含中文或特殊字符的链接
  * 返回编码后的 URL（或原始输入，当解析失败时）
+ *
+ * 该函数是幂等的：对同一个 URL 多次调用结果不变。
  */
 function sanitize_and_normalize_url( $url ) {
     $url = trim( $url );
@@ -31,32 +53,63 @@ function sanitize_and_normalize_url( $url ) {
     }
 
     if ( isset( $parts['path'] ) ) {
-        // 对 path 的每个段进行 rawurlencode，保留 '/'
+        // 对 path 的每个段做一次性编码，保留 '/' 作为分隔符
         $segments = explode( '/', $parts['path'] );
-        $segments = array_map( 'rawurlencode', $segments );
+        $segments = array_map( function ( $segment ) {
+            // 路径中这些子分隔符合法，无需编码
+            return apps_exhibition_encode_once( $segment, '@:$,;+!*\'()' );
+        }, $segments );
         $normalized .= implode( '/', $segments );
     }
 
     if ( isset( $parts['query'] ) ) {
-        // 对 query 的键和值做编码
+        // 对 query 的键和值分别做一次性编码，保留 & = 结构
         $pairs = explode( '&', $parts['query'] );
         $encPairs = array();
         foreach ( $pairs as $p ) {
+            if ( $p === '' ) {
+                continue;
+            }
             if ( strpos( $p, '=' ) !== false ) {
                 list( $k, $v ) = explode( '=', $p, 2 );
-                $encPairs[] = rawurlencode( $k ) . '=' . rawurlencode( $v );
+                $encPairs[] = apps_exhibition_encode_once( $k ) . '=' . apps_exhibition_encode_once( $v );
             } else {
-                $encPairs[] = rawurlencode( $p );
+                $encPairs[] = apps_exhibition_encode_once( $p );
             }
         }
         $normalized .= '?' . implode( '&', $encPairs );
     }
 
     if ( isset( $parts['fragment'] ) ) {
-        $normalized .= '#' . rawurlencode( $parts['fragment'] );
+        $normalized .= '#' . apps_exhibition_encode_once( $parts['fragment'], '/?' );
     }
 
     return $normalized;
+}
+
+/**
+ * 读取应用的下载链接。
+ *
+ * 新数据以 JSON 存储；旧数据为 PHP 序列化字符串，
+ * 这里做双向兼容，保证升级后历史数据仍可正常读取。
+ */
+function apps_exhibition_parse_downloads( $raw ) {
+    if ( empty( $raw ) ) {
+        return [];
+    }
+
+    if ( is_array( $raw ) ) {
+        return $raw;
+    }
+
+    $decoded = json_decode( $raw, true );
+    if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) ) {
+        return $decoded;
+    }
+
+    // 回退：兼容旧的 PHP 序列化格式
+    $legacy = maybe_unserialize( $raw );
+    return is_array( $legacy ) ? $legacy : [];
 }
 
 /**
@@ -154,7 +207,7 @@ function apps_exhibition_handle_form() {
         'app_icon'            => $app_icon,
         'app_platforms'       => $app_platforms_str,
         'app_filter_category' => $app_filter_str,
-        'app_downloads'       => maybe_serialize( $downloads ),
+        'app_downloads'       => wp_json_encode( $downloads ),
     ];
     $formats = [ '%s', '%s', '%s', '%s', '%s', '%s' ];
 

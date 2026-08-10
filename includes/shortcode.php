@@ -58,50 +58,67 @@ function apps_exhibition_shortcode() {
         $filter_category = '__all__';
     }
 
-    // 获取分类排序配置
-    $category_orders = get_option( 'apps_exhibition_category_order', [] );
-    if ( ! is_array( $category_orders ) ) {
-        $category_orders = [];
-    }
-
     // 按分类排序应用：根据每个分类的自定义排序
-    // 为每个分类生成排好序的应用列表（输出到前端 data 属性供 JS 使用）
-    $sorted_apps_by_category = [];
-    foreach ( $categories_in_use as $cat ) {
-        $cat_app_ids = [];
+    // 该计算为 O(分类数 × 应用数)，结果缓存，避免每次请求重算
+    $sorted_cache_key        = 'apps_exhibition_sorted_v' . Apps_Exhibition::VERSION;
+    $sorted_apps_by_category = get_transient( $sorted_cache_key );
+
+    if ( false === $sorted_apps_by_category || ! is_array( $sorted_apps_by_category ) ) {
+        // 获取分类排序配置
+        $category_orders = get_option( 'apps_exhibition_category_order', [] );
+        if ( ! is_array( $category_orders ) ) {
+            $category_orders = [];
+        }
+
+        // 预先建立 分类 => 应用ID 列表 的映射，避免嵌套遍历
+        $ids_by_category = [];
         foreach ( $all_apps as $app ) {
+            $app_id   = (int) $app['id'];
             $app_cats = array_map( 'trim', explode( ',', $app['app_filter_category'] ) );
-            if ( in_array( $cat, $app_cats, true ) ) {
-                $cat_app_ids[] = $app['id'];
+            foreach ( $app_cats as $app_cat ) {
+                if ( $app_cat === '' ) {
+                    continue;
+                }
+                $ids_by_category[ $app_cat ][] = $app_id;
             }
         }
 
-        // 如果该分类有自定义排序，按排序重排
-        if ( isset( $category_orders[ $cat ] ) && is_array( $category_orders[ $cat ] ) ) {
-            $custom_order = $category_orders[ $cat ];
-            $ordered = [];
-            // 先放有排序的
-            foreach ( $custom_order as $oid ) {
-                if ( in_array( $oid, $cat_app_ids ) ) {
-                    $ordered[] = $oid;
+        $sorted_apps_by_category = [];
+        foreach ( $categories_in_use as $cat ) {
+            $cat_app_ids = isset( $ids_by_category[ $cat ] ) ? $ids_by_category[ $cat ] : [];
+
+            // 如果该分类有自定义排序，按排序重排
+            if ( isset( $category_orders[ $cat ] ) && is_array( $category_orders[ $cat ] ) ) {
+                $available = array_flip( $cat_app_ids );
+                $ordered   = [];
+
+                // 先放有排序的
+                foreach ( $category_orders[ $cat ] as $oid ) {
+                    $oid = (int) $oid;
+                    if ( isset( $available[ $oid ] ) ) {
+                        $ordered[] = $oid;
+                        unset( $available[ $oid ] );
+                    }
                 }
-            }
-            // 再追加新增的（不在排序列表中的）
-            foreach ( $cat_app_ids as $aid ) {
-                if ( ! in_array( $aid, $ordered ) ) {
-                    $ordered[] = $aid;
+
+                // 再追加新增的（不在排序列表中的），保持原有相对顺序
+                foreach ( $cat_app_ids as $aid ) {
+                    if ( isset( $available[ $aid ] ) ) {
+                        $ordered[] = $aid;
+                        unset( $available[ $aid ] );
+                    }
                 }
+
+                $cat_app_ids = $ordered;
             }
-            $cat_app_ids = $ordered;
+
+            $sorted_apps_by_category[ $cat ] = $cat_app_ids;
         }
 
-        $sorted_apps_by_category[ $cat ] = $cat_app_ids;
+        set_transient( $sorted_cache_key, $sorted_apps_by_category, 3600 );
     }
 
-    $home_posters = get_option( 'home_posters', [] );
-    if ( ! is_array( $home_posters ) ) {
-        $home_posters = [];
-    }
+    $home_posters = Apps_Exhibition::get_home_posters();
 
     ob_start();
     ?>
@@ -162,8 +179,7 @@ function apps_exhibition_shortcode() {
 
         <div class="apps-exhibition-list">
             <?php foreach ( $all_apps as $app ) :
-                $downloads  = maybe_unserialize( $app['app_downloads'] );
-                $downloads  = is_array( $downloads ) ? $downloads : [];
+                $downloads  = apps_exhibition_parse_downloads( $app['app_downloads'] );
                 $platforms  = explode(',', $app['app_platforms']);
                 $app_categories = explode(',', $app['app_filter_category']);
                 $app_categories_attr = implode(',', array_map('trim', $app_categories));

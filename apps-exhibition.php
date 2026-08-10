@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.5
+ * Version: 2.0.6
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -17,9 +17,30 @@ if ( ! defined( 'APPS_EXHIBITION_PATH' ) ) {
     define( 'APPS_EXHIBITION_PATH', plugin_dir_path( __FILE__ ) );
 }
 
+if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
+    define( 'APPS_EXHIBITION_FILE', __FILE__ );
+}
+
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.5';
+    const VERSION = '2.0.6';
+
+    /**
+     * 数据表结构版本。修改建表 SQL 时必须递增此值，
+     * 以便已安装的站点在升级插件后自动执行 dbDelta。
+     */
+    const DB_VERSION = '1.0.0';
+
+    const DB_VERSION_OPTION = 'apps_exhibition_db_version';
+
+    /**
+     * 首页海报 option。旧版本使用无前缀的 'home_posters'，
+     * 存在与主题/其他插件冲突的风险，现已迁移至带前缀的 key。
+     */
+    const POSTERS_OPTION     = 'apps_exhibition_home_posters';
+    const POSTERS_OPTION_OLD = 'home_posters';
+
+    const MAX_POSTERS = 10;
 
     private static $instance = null;
     private $plugin_path;
@@ -44,13 +65,19 @@ final class Apps_Exhibition {
         $this->init_hooks();
     }
 
-    private function __clone() {}
+    public function __clone() { throw new \Exception( 'Cannot clone singleton' ); }
     public function __wakeup() { throw new \Exception( 'Cannot unserialize singleton' ); }
 
     private function init_hooks() {
         register_activation_hook( __FILE__, [ $this, 'activate_plugin' ] );
+        register_deactivation_hook( __FILE__, [ $this, 'deactivate_plugin' ] );
+
+        // 插件通过 FTP/Git 直接覆盖升级时不会触发激活钩子，
+        // 因此在每次加载时检查一次结构版本。
+        add_action( 'plugins_loaded', [ $this, 'maybe_upgrade' ] );
 
         add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
+        add_filter( 'plugin_action_links_' . plugin_basename( APPS_EXHIBITION_FILE ), [ $this, 'add_plugin_action_links' ] );
         add_action( 'admin_enqueue_scripts', [ $this, 'admin_enqueue_scripts' ] );
         add_action( 'wp_enqueue_scripts', [ $this, 'frontend_register_scripts' ] );
 
@@ -70,11 +97,51 @@ final class Apps_Exhibition {
     }
 
     public function activate_plugin() {
+        $this->install_schema();
+        $this->install_default_options();
+        $this->migrate_posters_option();
+
+        update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+    }
+
+    /**
+     * 停用时不删除任何用户数据（数据清理交给 uninstall.php），
+     * 仅清除缓存与计划任务，避免停用期间残留脏缓存。
+     */
+    public function deactivate_plugin() {
+        self::clear_frontend_cache();
+    }
+
+    /**
+     * 覆盖式升级（FTP / Git / 手动替换文件）不会触发激活钩子，
+     * 这里比对已存储的结构版本，必要时补跑建表与迁移逻辑。
+     */
+    public function maybe_upgrade() {
+        $installed = get_option( self::DB_VERSION_OPTION );
+
+        if ( $installed === self::DB_VERSION ) {
+            return;
+        }
+
+        $this->install_schema();
+        $this->install_default_options();
+        $this->migrate_posters_option();
+        self::clear_frontend_cache();
+
+        update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+    }
+
+    /**
+     * 建表 / 升级表结构。
+     * 注意：dbDelta 需要标准的 "CREATE TABLE"（不能带 IF NOT EXISTS），
+     * 否则它无法比对既有表的列并生成 ALTER 语句。
+     */
+    private function install_schema() {
         global $wpdb;
 
         $charset_collate = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE IF NOT EXISTS {$this->table_name} (
+        $sql = "CREATE TABLE {$this->table_name} (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             app_name varchar(100) NOT NULL,
             app_description text NOT NULL,
@@ -88,11 +155,12 @@ final class Apps_Exhibition {
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql );
+    }
 
-        $default_cats = [ 'Emby', 'IPTV', '代理' ];
+    private function install_default_options() {
         $option = get_option( 'apps_exhibition_filter_categories' );
         if ( ! is_array( $option ) || empty( $option ) ) {
-            update_option( 'apps_exhibition_filter_categories', $default_cats );
+            update_option( 'apps_exhibition_filter_categories', [ 'Emby', 'IPTV', '代理' ] );
         }
 
         $platforms_option = get_option( 'apps_exhibition_platform_categories' );
@@ -104,6 +172,42 @@ final class Apps_Exhibition {
         if ( false === get_option( 'apps_exhibition_category_order' ) ) {
             update_option( 'apps_exhibition_category_order', [] );
         }
+    }
+
+    /**
+     * 将旧的无前缀 option 'home_posters' 迁移到带前缀的 key。
+     * 迁移只在新 key 尚不存在时执行，且执行后删除旧 key，保证幂等。
+     */
+    private function migrate_posters_option() {
+        if ( false !== get_option( self::POSTERS_OPTION, false ) ) {
+            // 新 key 已存在，仅清理可能残留的旧 key
+            if ( false !== get_option( self::POSTERS_OPTION_OLD, false ) ) {
+                delete_option( self::POSTERS_OPTION_OLD );
+            }
+            return;
+        }
+
+        $legacy = get_option( self::POSTERS_OPTION_OLD, false );
+        if ( false === $legacy ) {
+            return;
+        }
+
+        update_option( self::POSTERS_OPTION, is_array( $legacy ) ? $legacy : [] );
+        delete_option( self::POSTERS_OPTION_OLD );
+    }
+
+    /**
+     * 读取首页海报，兼容尚未迁移的旧数据。
+     */
+    public static function get_home_posters() {
+        $posters = get_option( self::POSTERS_OPTION, false );
+
+        if ( false === $posters ) {
+            // 迁移尚未执行（例如覆盖升级后首次访问前端）时回退读取旧 key
+            $posters = get_option( self::POSTERS_OPTION_OLD, [] );
+        }
+
+        return is_array( $posters ) ? $posters : [];
     }
 
     public function get_table_name() {
@@ -133,6 +237,7 @@ final class Apps_Exhibition {
 
     public static function clear_frontend_cache() {
         delete_transient( 'apps_exhibition_all_data_v' . self::VERSION );
+        delete_transient( 'apps_exhibition_sorted_v' . self::VERSION );
     }
 
     /**
@@ -222,6 +327,33 @@ final class Apps_Exhibition {
         }
     }
 
+    /**
+     * 在插件列表页「停用」链接旁增加「设置」入口，一键进入应用展示设置页。
+     */
+    public function add_plugin_action_links( $links ) {
+        $settings_link = sprintf(
+            '<a href="%s">%s</a>',
+            esc_url( admin_url( 'admin.php?page=apps-exhibition&tab=settings' ) ),
+            __( '设置', 'apps-exhibition' )
+        );
+
+        // 将「设置」插入到「停用」之后，保持操作链接的阅读顺序
+        if ( isset( $links['deactivate'] ) ) {
+            $new_links = [];
+            foreach ( $links as $key => $value ) {
+                $new_links[ $key ] = $value;
+                if ( $key === 'deactivate' ) {
+                    $new_links['settings'] = $settings_link;
+                }
+            }
+            $links = $new_links;
+        } else {
+            $links['settings'] = $settings_link;
+        }
+
+        return $links;
+    }
+
     public function admin_enqueue_scripts( $hook_suffix ) {
         if ( $hook_suffix !== 'toplevel_page_apps-exhibition' ) {
             return;
@@ -240,8 +372,9 @@ final class Apps_Exhibition {
             'selectFilter'       => __( '请至少选择一个筛选分类。', 'apps-exhibition' ),
             'fillDownload'       => __( '请确保所有下载链接和按钮文字均已填写，或者留空以便删除。', 'apps-exhibition' ),
             'needOneDownload'    => __( '请至少填写一个完整下载链接（URL和按钮文字）。', 'apps-exhibition' ),
-            'maxPostersAlert'    => sprintf( __( '最多只能上传 %d 张海报', 'apps-exhibition' ), 10 ),
-            'maxPostersExceed'   => sprintf( __( '添加这些图片将超过 %d 张的限制', 'apps-exhibition' ), 10 ),
+            'maxPosters'         => self::MAX_POSTERS,
+            'maxPostersAlert'    => sprintf( __( '最多只能上传 %d 张海报', 'apps-exhibition' ), self::MAX_POSTERS ),
+            'maxPostersExceed'   => sprintf( __( '添加这些图片将超过 %d 张的限制', 'apps-exhibition' ), self::MAX_POSTERS ),
             'selectIconTitle'    => __( '选择应用图标', 'apps-exhibition' ),
             'useIconBtn'         => __( '使用这个图标', 'apps-exhibition' ),
             'selectPosterTitle'  => __( '选择海报图片', 'apps-exhibition' ),
@@ -291,7 +424,7 @@ final class Apps_Exhibition {
             return isset( $item['url'] ) && ! empty( $item['url'] ) && filter_var( $item['url'], FILTER_VALIDATE_URL );
         } );
 
-        $posters = array_slice( $posters, 0, 10 );
+        $posters = array_slice( $posters, 0, self::MAX_POSTERS );
 
         $posters = array_map( function( $item ) {
             return [
@@ -302,7 +435,10 @@ final class Apps_Exhibition {
         }, $posters );
 
         $posters = array_values( $posters );
-        update_option( 'home_posters', $posters );
+        update_option( self::POSTERS_OPTION, $posters );
+        delete_option( self::POSTERS_OPTION_OLD );
+
+        self::clear_frontend_cache();
 
         wp_safe_redirect( add_query_arg( [ 'message' => 'home_posters_saved' ], wp_get_referer() ) );
         exit;

@@ -90,8 +90,7 @@ settings_errors( 'apps_exhibition_messages' );
                     <?php foreach ( $apps as $app ) :
                         $platforms = explode( ',', $app['app_platforms'] );
                         $filter_cats = explode( ',', $app['app_filter_category'] );
-                        $downloads = maybe_unserialize( $app['app_downloads'] );
-                        if ( ! is_array( $downloads ) ) $downloads = [];
+                        $downloads = apps_exhibition_parse_downloads( $app['app_downloads'] );
                     ?>
                         <tr data-id="<?php echo esc_attr( $app['id'] ); ?>"
                             data-name="<?php echo esc_attr( $app['app_name'] ); ?>"
@@ -239,8 +238,7 @@ settings_errors( 'apps_exhibition_messages' );
 <?php elseif ( $current_tab === 'home_posters' ) : ?>
 
     <?php
-        $home_posters = get_option( 'home_posters', [] );
-        if ( ! is_array( $home_posters ) ) $home_posters = [];
+        $home_posters = Apps_Exhibition::get_home_posters();
     ?>
 
     <h2><?php esc_html_e( '首页海报管理', 'apps-exhibition' ); ?></h2>
