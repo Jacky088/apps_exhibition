@@ -125,13 +125,13 @@ apps_exhibition/
 
 ## 更新日志
 
-### v2.0.5
+### v2.0.6
 - 分类筛选增加「全部」选项
 - 分类切换 URL 联动（支持浏览器前进/后退）
 - DOM 操作优化（DocumentFragment 批量插入）
 - 移除平台标签无效的 backdrop-filter，降低 GPU 开销
 - 增加 aspect-ratio fallback 兼容旧浏览器
-- 轮播图增加 Swiper 导航箭头
+- 修复一些已知问题
 
 
 ---
