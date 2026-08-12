@@ -201,15 +201,10 @@
     background: #007bff;
     color: #fff;
     border-color: #007bff;
-    /* 修复：圆角胶囊的外部阴影（box-shadow / filter:drop-shadow）会被父级
-       .filter-scroll 与 .apps-exhibition-filter-group 的 overflow:hidden 裁剪，
-       在 iOS/部分 Android WebView 上还会因 GPU 合成层偶发渲染缺失一块。
-       完全去掉外部阴影，激活态视觉强化改为：
-       1) outline 半透明蓝色外圈（iOS 上不依赖父级 overflow，跨浏览器稳定）；
-       2) inset 内阴影做轻微"按下"质感（绝对完整，不受 overflow 影响）。 */
-    outline: 2px solid rgba(0, 123, 255, 0.32);
-    outline-offset: 0;
+    /* 避免被父容器 overflow:hidden 裁剪，改用边框和内阴影表现激活态 */
+    outline: none;
     box-shadow: inset 0 -1px 2px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(0, 123, 255, 0.75);
     text-decoration: none;
 }
 
@@ -563,11 +558,8 @@
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        /* 恢复负 margin：让滚动区向右延伸到卡片右内边缘，使末尾胶囊能贴到卡片右边界。
-           真正阻止胶囊越过卡片右边界的是外层 .apps-exhibition-filter-group 的 overflow:hidden，
-           二者配合实现"胶囊滑入圆角右边界"而非露在卡片外（原 bug）。 */
-        margin-right: -12px;
-        padding-right: 12px;
+        padding-right: 16px;
+        min-width: 0;
     }
 
     #apps-exhibition-root .filter-scroll::after {
@@ -587,9 +579,11 @@
     }
 
     #apps-exhibition-root .filter-scroll-inner {
+        display: flex;
         flex-wrap: nowrap;
         gap: 8px;
         padding-right: 20px;
+        min-width: max-content;
     }
 
     #apps-exhibition-root .apps-exhibition-filter .filter-btn {
