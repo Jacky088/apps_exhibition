@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.6
+ * Version: 2.0.8
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -23,7 +23,7 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.6';
+    const VERSION = '2.0.8';
 
     /**
      * 数据表结构版本。修改建表 SQL 时必须递增此值，
@@ -32,6 +32,12 @@ final class Apps_Exhibition {
     const DB_VERSION = '1.0.0';
 
     const DB_VERSION_OPTION = 'apps_exhibition_db_version';
+
+    /**
+     * 已激活的插件版本。每次插件版本提升时用于强制刷新前端缓存，
+     * 避免旧版本 transient 残留导致前端样式/数据不更新。
+     */
+    const VERSION_OPTION = 'apps_exhibition_version';
 
     /**
      * 首页海报 option。旧版本使用无前缀的 'home_posters'，
@@ -75,6 +81,8 @@ final class Apps_Exhibition {
         // 插件通过 FTP/Git 直接覆盖升级时不会触发激活钩子，
         // 因此在每次加载时检查一次结构版本。
         add_action( 'plugins_loaded', [ $this, 'maybe_upgrade' ] );
+        // 插件版本提升时强制刷新前端缓存（覆盖升级不触发激活钩子，故每次加载检查）。
+        add_action( 'plugins_loaded', [ $this, 'maybe_flush_cache_on_version' ] );
 
         add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
         add_filter( 'plugin_action_links_' . plugin_basename( APPS_EXHIBITION_FILE ), [ $this, 'add_plugin_action_links' ] );
@@ -129,6 +137,34 @@ final class Apps_Exhibition {
         self::clear_frontend_cache();
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+    }
+
+    /**
+     * 插件版本提升时强制刷新所有前端缓存。
+     *
+     * clear_frontend_cache() 仅删除当前 VERSION 对应的 transient，
+     * 旧版本缓存不会被自动清理。这里通过直接删除数据库中所有以
+     * apps_exhibition_all_data_v / apps_exhibition_sorted_v 为前缀的 transient，
+     * 确保升级后前端立即使用最新数据与样式，无需手动清空缓存。
+     */
+    public function maybe_flush_cache_on_version() {
+        $saved = get_option( self::VERSION_OPTION );
+
+        if ( $saved === self::VERSION ) {
+            return;
+        }
+
+        global $wpdb;
+
+        // 删除所有版本的前端缓存 transient（含旧版本残留）。
+        $like = $wpdb->esc_like( '_transient_apps_exhibition_all_data_v' ) . '%';
+        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+        $like = $wpdb->esc_like( '_transient_apps_exhibition_sorted_v' ) . '%';
+        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+
+        self::clear_frontend_cache();
+
+        update_option( self::VERSION_OPTION, self::VERSION );
     }
 
     /**
