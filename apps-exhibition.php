@@ -497,6 +497,20 @@ final class Apps_Exhibition {
         return $links;
     }
 
+    /**
+     * 资源缓存版本号：文件修改时间戳 + 插件版本。
+     *
+     * 单纯依赖 VERSION 常量时，改动 JS/CSS 后若忘记递增版本号（或浏览器/
+     * CDN 缓存异常顽固），客户端会继续运行旧脚本，出现"新按钮永远禁用"这类
+     * 新旧代码混跑的怪象。绑定 filemtime 后文件一变 URL 必变，彻底免疫缓存。
+     */
+    private function asset_version( $relative_path ) {
+        $file  = $this->plugin_path . ltrim( $relative_path, '/' );
+        $mtime = file_exists( $file ) ? filemtime( $file ) : false;
+
+        return $mtime ? $mtime . '-' . self::VERSION : self::VERSION;
+    }
+
     public function admin_enqueue_scripts( $hook_suffix ) {
         if ( $hook_suffix !== 'toplevel_page_apps-exhibition' ) {
             return;
@@ -504,8 +518,8 @@ final class Apps_Exhibition {
 
         wp_enqueue_media();
         wp_enqueue_script( 'jquery-ui-sortable' );
-        wp_enqueue_style( 'apps-exhibition-admin-style', $this->plugin_url . 'assets/css/admin.css', [], self::VERSION );
-        wp_enqueue_script( 'apps-exhibition-admin-script', $this->plugin_url . 'assets/js/admin.js', [ 'jquery', 'jquery-ui-sortable' ], self::VERSION, true );
+        wp_enqueue_style( 'apps-exhibition-admin-style', $this->plugin_url . 'assets/css/admin.css', [], $this->asset_version( 'assets/css/admin.css' ) );
+        wp_enqueue_script( 'apps-exhibition-admin-script', $this->plugin_url . 'assets/js/admin.js', [ 'jquery', 'jquery-ui-sortable' ], $this->asset_version( 'assets/js/admin.js' ), true );
 
         wp_localize_script( 'apps-exhibition-admin-script', 'appsExhibitionL10n', [
             'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
@@ -547,11 +561,11 @@ final class Apps_Exhibition {
     }
 
     public function frontend_register_scripts() {
-        wp_register_style( 'apps-exhibition-style', $this->plugin_url . 'assets/css/apps-exhibition.css', [], self::VERSION );
+        wp_register_style( 'apps-exhibition-style', $this->plugin_url . 'assets/css/apps-exhibition.css', [], $this->asset_version( 'assets/css/apps-exhibition.css' ) );
         // Swiper 改为本地加载：规避 CDN 供应链风险与国内网络不稳定导致的轮播失效
         wp_register_style( 'swiper-css', $this->plugin_url . 'assets/vendor/swiper-bundle.min.css', [], '10.3.1' );
         wp_register_script( 'swiper-js', $this->plugin_url . 'assets/vendor/swiper-bundle.min.js', [], '10.3.1', true );
-        wp_register_script( 'apps-exhibition-front', $this->plugin_url . 'assets/js/apps-exhibition.js', [ 'swiper-js' ], self::VERSION, true );
+        wp_register_script( 'apps-exhibition-front', $this->plugin_url . 'assets/js/apps-exhibition.js', [ 'swiper-js' ], $this->asset_version( 'assets/js/apps-exhibition.js' ), true );
     }
 
     public function save_home_posters() {
