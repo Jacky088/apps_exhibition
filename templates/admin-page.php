@@ -5,21 +5,44 @@ $plugin = Apps_Exhibition::get_instance();
 $platform_options = $plugin->get_platform_categories();
 $filter_categories = $plugin->get_filter_categories();
 
-$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( $_GET['tab'] ) : 'apps';
+$current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'apps';
+
+// 还原上一次表单提交暂存的具体校验错误（读取后立即删除，避免重复展示）
+$form_errors_transient = Apps_Exhibition::FORM_ERRORS_TRANSIENT . get_current_user_id();
+$form_errors = get_transient( $form_errors_transient );
+$has_form_errors = false;
+if ( $form_errors && is_array( $form_errors ) ) {
+    delete_transient( $form_errors_transient );
+    foreach ( $form_errors as $err ) {
+        if ( ! empty( $err['message'] ) ) {
+            add_settings_error(
+                $err['setting'] ?? 'apps_exhibition_messages',
+                $err['code'] ?? 'form_error',
+                $err['message'],
+                $err['type'] ?? 'error'
+            );
+            $has_form_errors = true;
+        }
+    }
+}
 
 if ( isset( $_GET['message'] ) ) {
-    $msg = sanitize_text_field( $_GET['message'] );
+    $msg = sanitize_text_field( wp_unslash( $_GET['message'] ) );
     $messages_map = [
         'inserted'           => [ __( '新增应用成功！', 'apps-exhibition' ), 'updated' ],
         'updated'            => [ __( '更新应用成功！', 'apps-exhibition' ), 'updated' ],
         'deleted'            => [ __( '删除成功！', 'apps-exhibition' ), 'updated' ],
         'delete_error'       => [ __( '删除失败！', 'apps-exhibition' ), 'error' ],
+        'bulk_moved'         => [ __( '批量移动分类完成！', 'apps-exhibition' ), 'updated' ],
+        'bulk_move_error'    => [ __( '批量移动失败，请检查所选应用与目标分类。', 'apps-exhibition' ), 'error' ],
+        'bulk_move_same'     => [ __( '源分类与目标分类相同，无需移动。', 'apps-exhibition' ), 'error' ],
         'cat_saved'          => [ __( '筛选分类已保存！', 'apps-exhibition' ), 'updated' ],
         'platform_saved'     => [ __( '应用平台已保存！', 'apps-exhibition' ), 'updated' ],
         'home_posters_saved' => [ __( '海报保存成功！', 'apps-exhibition' ), 'updated' ],
         'error'              => [ __( '操作失败，请检查输入。', 'apps-exhibition' ), 'error' ],
     ];
-    if ( isset( $messages_map[ $msg ] ) ) {
+    // 已还原具体校验错误时，不再叠加笼统的失败提示
+    if ( isset( $messages_map[ $msg ] ) && ! ( $msg === 'error' && $has_form_errors ) ) {
         add_settings_error( 'apps_exhibition_messages', $msg, $messages_map[$msg][0], $messages_map[$msg][1] );
     }
 }
@@ -41,6 +64,18 @@ settings_errors( 'apps_exhibition_messages' );
     global $wpdb;
     $table = $wpdb->prefix . 'apps_exhibition';
     $apps = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY created_at DESC", ARRAY_A );
+
+    // 收集"使用中但不在分类设置里"的分类（如重命名后遗留的旧分类名），
+    // 追加到排序分类下拉，便于按旧分类名筛选出待迁移的应用
+    $extra_categories = [];
+    foreach ( (array) $apps as $app_row ) {
+        foreach ( explode( ',', $app_row['app_filter_category'] ) as $extra_cat ) {
+            $extra_cat = trim( $extra_cat );
+            if ( '' !== $extra_cat && ! in_array( $extra_cat, $filter_categories, true ) && ! in_array( $extra_cat, $extra_categories, true ) ) {
+                $extra_categories[] = $extra_cat;
+            }
+        }
+    }
     ?>
 
     <!-- 工具栏 -->
@@ -52,12 +87,19 @@ settings_errors( 'apps_exhibition_messages' );
             <?php esc_html_e( '批量删除', 'apps-exhibition' ); ?>
         </button>
 
+        <button type="button" class="button ae-bulk-move-btn" id="ae-bulk-move-btn" disabled>
+            <?php esc_html_e( '批量移动', 'apps-exhibition' ); ?>
+        </button>
+
         <!-- 分类筛选（用于排序） -->
         <div class="ae-sort-category-select">
             <label for="ae-category-filter"><?php esc_html_e( '排序分类：', 'apps-exhibition' ); ?></label>
             <select id="ae-category-filter">
                 <option value=""><?php esc_html_e( '全部应用（不可排序）', 'apps-exhibition' ); ?></option>
                 <?php foreach ( $filter_categories as $cat ) : ?>
+                    <option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
+                <?php endforeach; ?>
+                <?php foreach ( $extra_categories as $cat ) : ?>
                     <option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
                 <?php endforeach; ?>
             </select>
@@ -193,6 +235,46 @@ settings_errors( 'apps_exhibition_messages' );
                     <div class="ae-form-actions">
                         <button type="submit" class="button button-primary" id="ae-form-submit"><?php esc_html_e( '保存', 'apps-exhibition' ); ?></button>
                         <button type="button" class="button" id="ae-form-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 批量移动分类模态框 -->
+    <div class="ae-modal-overlay" id="ae-move-modal-overlay" style="display:none;">
+        <div class="ae-modal ae-move-modal">
+            <div class="ae-modal-header">
+                <h2><?php esc_html_e( '批量移动分类', 'apps-exhibition' ); ?></h2>
+                <button type="button" class="ae-modal-close" id="ae-move-modal-close">&times;</button>
+            </div>
+            <div class="ae-modal-body">
+                <p class="ae-move-count" id="ae-move-selected-count"></p>
+
+                <form method="post" id="ae-bulk-move-form" action="<?php echo esc_url( admin_url( 'admin-post.php?action=apps_exhibition_bulk_move' ) ); ?>">
+                    <?php wp_nonce_field( 'apps_exhibition_bulk_move' ); ?>
+                    <input type="hidden" name="app_ids" id="ae-move-app-ids" value="" />
+
+                    <div class="ae-form-row">
+                        <label for="ae-move-source"><?php esc_html_e( '源分类（将被替换）', 'apps-exhibition' ); ?></label>
+                        <select name="source_category" id="ae-move-source"></select>
+                        <p class="description"><?php esc_html_e( '选项来自当前勾选应用所挂的分类。选择具体分类：仅替换该分类，应用的其他分类保留；选择"全部"：直接覆盖所选应用的全部分类。', 'apps-exhibition' ); ?></p>
+                    </div>
+
+                    <div class="ae-form-row">
+                        <label for="ae-move-target"><?php esc_html_e( '目标分类', 'apps-exhibition' ); ?></label>
+                        <select name="target_category" id="ae-move-target">
+                            <option value=""><?php esc_html_e( '请选择分类', 'apps-exhibition' ); ?></option>
+                            <?php foreach ( $filter_categories as $category ) : ?>
+                                <option value="<?php echo esc_attr( $category ); ?>"><?php echo esc_html( $category ); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description"><?php esc_html_e( '选项与「分类设置」中的筛选分类实时同步。', 'apps-exhibition' ); ?></p>
+                    </div>
+
+                    <div class="ae-form-actions">
+                        <button type="submit" class="button button-primary"><?php esc_html_e( '确认移动', 'apps-exhibition' ); ?></button>
+                        <button type="button" class="button" id="ae-move-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
                     </div>
                 </form>
             </div>

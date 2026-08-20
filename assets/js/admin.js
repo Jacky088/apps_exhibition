@@ -3,6 +3,13 @@ jQuery(document).ready(function($) {
 
     var l10n = window.appsExhibitionL10n || {};
 
+    // HTML 属性值转义：防止值中的引号/尖括号破坏属性边界导致 XSS
+    function escAttr( value ) {
+        return String( value == null ? '' : value ).replace( /[&<>"']/g, function( c ) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ c ];
+        } );
+    }
+
     // =============================================
     // 模态框
     // =============================================
@@ -134,8 +141,8 @@ jQuery(document).ready(function($) {
 
     function getDownloadItemHtml(url, text) {
         return '<div class="download-item">' +
-            '<input type="url" name="download_url[]" placeholder="' + (l10n.downloadUrlPlc || '下载链接 URL') + '" value="' + (url || '') + '" style="width:55%;" required />' +
-            '<input type="text" name="download_text[]" placeholder="' + (l10n.downloadTextPlc || '按钮文字（如：下载、安卓商店）') + '" value="' + (text || '') + '" style="width:30%;" required />' +
+            '<input type="url" name="download_url[]" placeholder="' + (l10n.downloadUrlPlc || '下载链接 URL') + '" value="' + escAttr(url || '') + '" style="width:55%;" required />' +
+            '<input type="text" name="download_text[]" placeholder="' + (l10n.downloadTextPlc || '按钮文字（如：下载、安卓商店）') + '" value="' + escAttr(text || '') + '" style="width:30%;" required />' +
             '<button type="button" class="button-link remove-download-button" title="' + (l10n.deleteBtn || '删除') + '"><span class="dashicons dashicons-dismiss"></span></button>' +
             '</div>';
     }
@@ -199,24 +206,88 @@ jQuery(document).ready(function($) {
     // 全选 / 批量删除
     // =============================================
     function updateBulkBtn() {
-        $('#ae-bulk-delete-btn').prop('disabled', $('.ae-row-check:checked').length === 0);
+        var hasSelection = $('.ae-row-check:checked').length > 0;
+        $('#ae-bulk-delete-btn').prop('disabled', !hasSelection);
+        $('#ae-bulk-move-btn').prop('disabled', !hasSelection);
     }
 
+    // 全选仅作用于当前可见行（被分类筛选或搜索隐藏的行不受影响），
+    // 避免筛选后全选误将隐藏行一并纳入批量操作
     $('#ae-check-all').on('change', function() {
-        $('.ae-row-check').prop('checked', $(this).prop('checked'));
+        $('.ae-row-check:visible').prop('checked', $(this).prop('checked'));
         updateBulkBtn();
     });
 
     $(document).on('change', '.ae-row-check', function() {
         updateBulkBtn();
-        var total = $('.ae-row-check').length;
-        var checked = $('.ae-row-check:checked').length;
+        var total = $('.ae-row-check:visible').length;
+        var checked = $('.ae-row-check:visible:checked').length;
         $('#ae-check-all').prop('checked', total === checked && total > 0);
     });
 
     $('#ae-bulk-delete-btn').on('click', function() {
         if ($('.ae-row-check:checked').length === 0) { alert(l10n.noBulkSelected); return; }
         if (confirm(l10n.confirmBulkDelete)) { $('#ae-bulk-form').submit(); }
+    });
+
+    // =============================================
+    // 批量移动分类
+    // =============================================
+    var $moveOverlay = $('#ae-move-modal-overlay');
+
+    function openMoveModal() {
+        var $checked = $('.ae-row-check:checked');
+        if ($checked.length === 0) { alert(l10n.noBulkSelected); return; }
+
+        // 汇总勾选应用的 ID 与其当前所挂分类（含重命名后遗留的旧分类名）
+        var ids = [];
+        var catMap = {};
+        $checked.each(function() {
+            var $row = $(this).closest('tr');
+            ids.push($row.attr('data-id'));
+            var rowCats = ($row.attr('data-filter-category') || '').split(',');
+            for (var i = 0; i < rowCats.length; i++) {
+                var c = rowCats[i].trim();
+                if (c) { catMap[c] = true; }
+            }
+        });
+
+        $('#ae-move-app-ids').val(ids.join(','));
+        $('#ae-move-selected-count').text((l10n.moveSelected || '已选择 %d 个应用').replace('%d', ids.length));
+
+        // 源分类选项 = 勾选应用身上实际存在的分类；末尾提供整体覆盖选项
+        var $source = $('#ae-move-source');
+        $source.empty();
+        Object.keys(catMap).sort().forEach(function(c) {
+            $source.append($('<option>', { value: c, text: c }));
+        });
+        $source.append($('<option>', { value: '', text: l10n.moveAllOption || '全部（覆盖现有分类）' }));
+
+        // 每次打开重置目标分类
+        $('#ae-move-target').val('');
+
+        $moveOverlay.fadeIn(200);
+    }
+
+    function closeMoveModal() {
+        $moveOverlay.fadeOut(200);
+    }
+
+    $('#ae-bulk-move-btn').on('click', openMoveModal);
+    $('#ae-move-modal-close, #ae-move-cancel').on('click', closeMoveModal);
+    $moveOverlay.on('click', function(e) {
+        if ($(e.target).is($moveOverlay)) { closeMoveModal(); }
+    });
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && $moveOverlay.is(':visible')) { closeMoveModal(); }
+    });
+
+    $('#ae-bulk-move-form').on('submit', function() {
+        if (!$('#ae-move-target').val()) {
+            alert(l10n.moveSelectTarget || '请选择目标分类。');
+            return false;
+        }
+        return confirm(l10n.moveConfirm || '确认移动所选应用的分类？');
     });
 
     // =============================================
@@ -320,18 +391,18 @@ jQuery(document).ready(function($) {
             var preview = '', config = '';
             for (var i = 0; i < posters.length; i++) {
                 preview += '<div class="poster-item" style="position:relative; display:inline-block; margin-right:10px;">' +
-                    '<img src="' + posters[i].url + '" style="max-width:150px; max-height:150px; border:1px solid #ccc; border-radius:8px;" />' +
+                    '<img src="' + escAttr(posters[i].url) + '" style="max-width:150px; max-height:150px; border:1px solid #ccc; border-radius:8px;" />' +
                     '<div style="margin-top:4px; text-align:center;">' +
                     '<button type="button" class="button change-poster">' + (l10n.changePosterBtn || '更换图片') + '</button> ' +
                     '<button type="button" class="button remove-poster">' + (l10n.removePosterBtn || '删除海报') + '</button>' +
                     '</div></div>';
 
                 config += '<div class="poster-config-item" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display:flex; align-items:flex-start; gap:15px;">' +
-                    '<div style="flex:0 0 auto;"><img src="' + posters[i].url + '" style="max-width:200px; max-height:150px; border-radius:6px;"></div>' +
+                    '<div style="flex:0 0 auto;"><img src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;"></div>' +
                     '<div style="flex:1 1 auto; display:flex; flex-direction:column; gap:10px;">' +
                     '<div><button type="button" class="button remove-poster-conf">' + (l10n.deleteBtn || '删除') + '</button></div>' +
-                    '<div><input type="text" class="widefat download-url-input" placeholder="' + (l10n.downloadAddrPlc || '下载地址') + '" value="' + (posters[i].download_url || '') + '"></div>' +
-                    '<div><input type="text" class="widefat download-text-input" placeholder="' + (l10n.downloadTextPlc || '按钮文字') + '" value="' + (posters[i].download_text || '') + '"></div>' +
+                    '<div><input type="text" class="widefat download-url-input" placeholder="' + (l10n.downloadAddrPlc || '下载地址') + '" value="' + escAttr(posters[i].download_url || '') + '"></div>' +
+                    '<div><input type="text" class="widefat download-text-input" placeholder="' + (l10n.downloadTextPlc || '按钮文字') + '" value="' + escAttr(posters[i].download_text || '') + '"></div>' +
                     '</div></div>';
             }
             $('#poster_preview_container').html(preview);

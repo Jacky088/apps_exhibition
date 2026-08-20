@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.8
+ * Version: 2.0.9
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -23,13 +23,13 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.8';
+    const VERSION = '2.0.9';
 
     /**
-     * 数据表结构版本。修改建表 SQL 时必须递增此值，
-     * 以便已安装的站点在升级插件后自动执行 dbDelta。
+     * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
+     * 以便已安装的站点在升级插件后自动执行 dbDelta 与迁移逻辑。
      */
-    const DB_VERSION = '1.0.0';
+    const DB_VERSION = '1.0.1';
 
     const DB_VERSION_OPTION = 'apps_exhibition_db_version';
 
@@ -38,6 +38,12 @@ final class Apps_Exhibition {
      * 避免旧版本 transient 残留导致前端样式/数据不更新。
      */
     const VERSION_OPTION = 'apps_exhibition_version';
+
+    /**
+     * 表单校验错误暂存 transient 前缀（后接用户 ID）。
+     * admin-post 处理器跳转前写入，后台列表页展示后立即删除。
+     */
+    const FORM_ERRORS_TRANSIENT = 'apps_exhibition_form_errors_';
 
     /**
      * 首页海报 option。旧版本使用无前缀的 'home_posters'，
@@ -99,6 +105,7 @@ final class Apps_Exhibition {
         add_action( 'admin_post_apps_exhibition_save', 'apps_exhibition_handle_form_post' );
         add_action( 'admin_post_apps_exhibition_delete', 'apps_exhibition_handle_delete' );
         add_action( 'admin_post_apps_exhibition_bulk_delete', 'apps_exhibition_handle_bulk_delete' );
+        add_action( 'admin_post_apps_exhibition_bulk_move', 'apps_exhibition_handle_bulk_move' );
 
         // AJAX - 按分类保存排序
         add_action( 'wp_ajax_apps_exhibition_save_category_order', [ $this, 'ajax_save_category_order' ] );
@@ -108,6 +115,7 @@ final class Apps_Exhibition {
         $this->install_schema();
         $this->install_default_options();
         $this->migrate_posters_option();
+        $this->migrate_slashed_data();
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
     }
@@ -134,6 +142,7 @@ final class Apps_Exhibition {
         $this->install_schema();
         $this->install_default_options();
         $this->migrate_posters_option();
+        $this->migrate_slashed_data();
         self::clear_frontend_cache();
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
@@ -146,6 +155,8 @@ final class Apps_Exhibition {
      * 旧版本缓存不会被自动清理。这里通过直接删除数据库中所有以
      * apps_exhibition_all_data_v / apps_exhibition_sorted_v 为前缀的 transient，
      * 确保升级后前端立即使用最新数据与样式，无需手动清空缓存。
+     * 对应的 _transient_timeout_ 行必须一并删除，否则会成为
+     * 永不过期的孤儿行，缓慢膨胀 options 表。
      */
     public function maybe_flush_cache_on_version() {
         $saved = get_option( self::VERSION_OPTION );
@@ -156,11 +167,18 @@ final class Apps_Exhibition {
 
         global $wpdb;
 
-        // 删除所有版本的前端缓存 transient（含旧版本残留）。
-        $like = $wpdb->esc_like( '_transient_apps_exhibition_all_data_v' ) . '%';
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
-        $like = $wpdb->esc_like( '_transient_apps_exhibition_sorted_v' ) . '%';
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+        // 删除所有版本的前端缓存 transient（含旧版本残留与对应的 timeout 行）。
+        $prefixes = [
+            '_transient_apps_exhibition_all_data_v',
+            '_transient_timeout_apps_exhibition_all_data_v',
+            '_transient_apps_exhibition_sorted_v',
+            '_transient_timeout_apps_exhibition_sorted_v',
+        ];
+
+        foreach ( $prefixes as $prefix ) {
+            $like = $wpdb->esc_like( $prefix ) . '%';
+            $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", $like ) );
+        }
 
         self::clear_frontend_cache();
 
@@ -246,6 +264,80 @@ final class Apps_Exhibition {
         return is_array( $posters ) ? $posters : [];
     }
 
+    /**
+     * 一次性数据迁移：清洗历史数据中因缺少 wp_unslash 而残留的反斜杠。
+     *
+     * 旧版保存表单时未做去斜杠处理，含引号的输入（如 Tom's App）
+     * 会以 Tom\'s App 入库，且每次重新编辑保存都会再累积一层转义。
+     * 本迁移对文本字段反复执行 stripslashes 直到值稳定，一次性还原所有层级。
+     *
+     * 幂等：对干净数据通常无变化（跳过更新）；仅当值中恰好包含
+     * 用户刻意输入的 \' \" \\ 序列时才会被误清洗（极少见）。
+     */
+    private function migrate_slashed_data() {
+        global $wpdb;
+
+        $rows = $wpdb->get_results(
+            "SELECT id, app_name, app_description, app_downloads FROM {$this->table_name}",
+            ARRAY_A
+        );
+        if ( empty( $rows ) ) {
+            return;
+        }
+
+        foreach ( $rows as $row ) {
+            $name = self::strip_repeated_slashes( $row['app_name'] );
+            $desc = self::strip_repeated_slashes( $row['app_description'] );
+
+            // 下载链接为 JSON（或旧版序列化）结构：解码后逐项清洗，变更时统一回写为 JSON
+            $downloads         = apps_exhibition_parse_downloads( $row['app_downloads'] );
+            $downloads_changed = false;
+            foreach ( $downloads as $key => $dl ) {
+                $url  = self::strip_repeated_slashes( $dl['url'] ?? '' );
+                $text = self::strip_repeated_slashes( $dl['text'] ?? '' );
+                if ( $url !== ( $dl['url'] ?? '' ) || $text !== ( $dl['text'] ?? '' ) ) {
+                    $downloads[ $key ]['url']  = $url;
+                    $downloads[ $key ]['text'] = $text;
+                    $downloads_changed = true;
+                }
+            }
+
+            if ( $name === $row['app_name'] && $desc === $row['app_description'] && ! $downloads_changed ) {
+                continue;
+            }
+
+            $wpdb->update(
+                $this->table_name,
+                [
+                    'app_name'        => $name,
+                    'app_description' => $desc,
+                    'app_downloads'   => $downloads_changed ? wp_json_encode( $downloads ) : $row['app_downloads'],
+                ],
+                [ 'id' => $row['id'] ],
+                [ '%s', '%s', '%s' ],
+                [ '%d' ]
+            );
+        }
+    }
+
+    /**
+     * 反复执行 stripslashes 直到值不再变化（上限 5 次），
+     * 用于清除历史数据中多次保存累积的多层转义。
+     */
+    private static function strip_repeated_slashes( $value ) {
+        $current = (string) $value;
+
+        for ( $i = 0; $i < 5; $i++ ) {
+            $stripped = stripslashes( $current );
+            if ( $stripped === $current ) {
+                break;
+            }
+            $current = $stripped;
+        }
+
+        return $current;
+    }
+
     public function get_table_name() {
         return $this->table_name;
     }
@@ -271,6 +363,21 @@ final class Apps_Exhibition {
         return [];
     }
 
+    /**
+     * 校验 URL 格式合法且协议在白名单内（仅允许 http/https）。
+     *
+     * FILTER_VALIDATE_URL 会放行 javascript:、data: 等危险协议，
+     * 因此入库前必须显式校验协议，避免脏数据进入数据库。
+     */
+    public static function is_safe_url( $url ) {
+        if ( ! filter_var( $url, FILTER_VALIDATE_URL ) ) {
+            return false;
+        }
+
+        $scheme = wp_parse_url( $url, PHP_URL_SCHEME );
+        return in_array( strtolower( (string) $scheme ), [ 'http', 'https' ], true );
+    }
+
     public static function clear_frontend_cache() {
         delete_transient( 'apps_exhibition_all_data_v' . self::VERSION );
         delete_transient( 'apps_exhibition_sorted_v' . self::VERSION );
@@ -286,8 +393,8 @@ final class Apps_Exhibition {
             wp_send_json_error( 'No permission' );
         }
 
-        $category = isset( $_POST['category'] ) ? sanitize_text_field( $_POST['category'] ) : '';
-        $order    = isset( $_POST['order'] ) ? $_POST['order'] : [];
+        $category = isset( $_POST['category'] ) ? sanitize_text_field( wp_unslash( $_POST['category'] ) ) : '';
+        $order    = isset( $_POST['order'] ) ? wp_unslash( $_POST['order'] ) : [];
 
         if ( empty( $category ) || ! is_array( $order ) ) {
             wp_send_json_error( 'Invalid data' );
@@ -432,13 +539,18 @@ final class Apps_Exhibition {
             'editApp'            => __( '编辑应用', 'apps-exhibition' ),
             'selectCategoryFirst' => __( '请先选择一个分类再拖拽排序', 'apps-exhibition' ),
             'allApps'            => __( '全部应用', 'apps-exhibition' ),
+            'moveSelected'       => __( '已选择 %d 个应用', 'apps-exhibition' ),
+            'moveAllOption'      => __( '全部（覆盖现有分类）', 'apps-exhibition' ),
+            'moveSelectTarget'   => __( '请选择目标分类。', 'apps-exhibition' ),
+            'moveConfirm'        => __( '确认移动所选应用的分类？此操作将立即生效。', 'apps-exhibition' ),
         ] );
     }
 
     public function frontend_register_scripts() {
         wp_register_style( 'apps-exhibition-style', $this->plugin_url . 'assets/css/apps-exhibition.css', [], self::VERSION );
-        wp_register_style( 'swiper-css', 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.css', [], '10' );
-        wp_register_script( 'swiper-js', 'https://cdn.jsdelivr.net/npm/swiper@10/swiper-bundle.min.js', [], '10', true );
+        // Swiper 改为本地加载：规避 CDN 供应链风险与国内网络不稳定导致的轮播失效
+        wp_register_style( 'swiper-css', $this->plugin_url . 'assets/vendor/swiper-bundle.min.css', [], '10.3.1' );
+        wp_register_script( 'swiper-js', $this->plugin_url . 'assets/vendor/swiper-bundle.min.js', [], '10.3.1', true );
         wp_register_script( 'apps-exhibition-front', $this->plugin_url . 'assets/js/apps-exhibition.js', [ 'swiper-js' ], self::VERSION, true );
     }
 
@@ -457,7 +569,7 @@ final class Apps_Exhibition {
         }
 
         $posters = array_filter( $posters, function( $item ) {
-            return isset( $item['url'] ) && ! empty( $item['url'] ) && filter_var( $item['url'], FILTER_VALIDATE_URL );
+            return isset( $item['url'] ) && ! empty( $item['url'] ) && self::is_safe_url( $item['url'] );
         } );
 
         $posters = array_slice( $posters, 0, self::MAX_POSTERS );

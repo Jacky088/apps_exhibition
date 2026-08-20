@@ -552,26 +552,19 @@
     }
 
     #apps-exhibition-root .filter-scroll {
-        position: relative;
         overflow-x: auto;
         overflow-y: hidden;
-        -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        padding-right: 16px;
         min-width: 0;
-    }
-
-    #apps-exhibition-root .filter-scroll::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 28px;
-        height: 100%;
-        background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,1));
-        pointer-events: none;
-        opacity: 0.9;
+        /* 用 mask 让滚动内容在右缘自然渐隐，替代原白色渐变遮罩：
+           原遮罩叠在胶囊上层，长文字分类滚动/点击到边缘时，
+           激活胶囊右端被白色渐变漂白，看起来像"高亮缺一块"。
+           mask 是裁切而非遮挡，胶囊渐隐为透明，不存在覆盖层级。 */
+        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
     }
 
     #apps-exhibition-root .filter-scroll::-webkit-scrollbar {
@@ -582,7 +575,10 @@
         display: flex;
         flex-wrap: nowrap;
         gap: 8px;
-        padding-right: 20px;
+        /* 末端缓冲与 mask 淡出宽度一致：保证任何浏览器下
+           （含 Safari 合成滚动层吞末端 padding 的怪癖），
+           贴右缘的胶囊完整处于淡出区，不会与卡片边界硬碰 */
+        padding-right: 24px;
         min-width: max-content;
     }
 

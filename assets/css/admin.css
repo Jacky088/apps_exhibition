@@ -494,3 +494,33 @@
         width: 100%;
     }
 }
+
+/* === 批量移动分类 === */
+.ae-bulk-move-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ae-move-modal {
+    width: 480px;
+}
+
+.ae-move-count {
+    margin: 0 0 16px;
+    padding: 8px 12px;
+    background: #f0f7fc;
+    border: 1px solid #c3ddf1;
+    border-radius: 6px;
+    color: #1d5f8a;
+    font-size: 13px;
+}
+
+.ae-move-modal select {
+    width: 100%;
+}
+
+.ae-move-modal .description {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #666;
+}

@@ -123,27 +123,27 @@ function apps_exhibition_handle_form() {
 
     $id = isset( $_POST['app_id'] ) ? intval( $_POST['app_id'] ) : 0;
 
-    // Fail Fast 验证
-    $app_name = sanitize_text_field( $_POST['app_name'] ?? '' );
+    // Fail Fast 验证（wp_unslash 去除 WP 魔术引号，避免含引号输入入库残留反斜杠）
+    $app_name = sanitize_text_field( wp_unslash( $_POST['app_name'] ?? '' ) );
     if ( empty( $app_name ) ) {
         add_settings_error( 'apps_exhibition_messages', 'error', __( '应用名称不能为空。', 'apps-exhibition' ), 'error' );
         return false;
     }
 
-    $app_description = sanitize_textarea_field( $_POST['app_description'] ?? '' );
+    $app_description = sanitize_textarea_field( wp_unslash( $_POST['app_description'] ?? '' ) );
     if ( empty( $app_description ) ) {
         add_settings_error( 'apps_exhibition_messages', 'error', __( '应用描述不能为空。', 'apps-exhibition' ), 'error' );
         return false;
     }
 
-    $app_icon = esc_url_raw( $_POST['app_icon'] ?? '' );
+    $app_icon = esc_url_raw( wp_unslash( $_POST['app_icon'] ?? '' ) );
     if ( empty( $app_icon ) ) {
         add_settings_error( 'apps_exhibition_messages', 'error', __( '应用图标不能为空。', 'apps-exhibition' ), 'error' );
         return false;
     }
 
     $platform_options = $plugin->get_platform_categories();
-    $app_platforms_raw = $_POST['app_platforms'] ?? [];
+    $app_platforms_raw = wp_unslash( $_POST['app_platforms'] ?? [] );
     $app_platforms_selected = [];
     if ( is_array( $app_platforms_raw ) ) {
         $app_platforms_selected = array_intersect( array_map( 'sanitize_text_field', $app_platforms_raw ), $platform_options );
@@ -154,7 +154,7 @@ function apps_exhibition_handle_form() {
     }
     $app_platforms_str = implode( ',', $app_platforms_selected );
 
-    $app_filter_raw = $_POST['app_filter_category'] ?? [];
+    $app_filter_raw = wp_unslash( $_POST['app_filter_category'] ?? [] );
     $app_filter_selected = [];
     if ( is_array( $app_filter_raw ) ) {
         $app_filter_selected = array_filter( array_map( 'sanitize_text_field', $app_filter_raw ), function($val) { return $val !== ''; } );
@@ -165,8 +165,8 @@ function apps_exhibition_handle_form() {
     }
     $app_filter_str = implode( ',', $app_filter_selected );
 
-    $download_urls  = $_POST['download_url'] ?? [];
-    $download_texts = $_POST['download_text'] ?? [];
+    $download_urls  = wp_unslash( $_POST['download_url'] ?? [] );
+    $download_texts = wp_unslash( $_POST['download_text'] ?? [] );
     $downloads      = [];
 
     if ( ! is_array( $download_urls ) ) $download_urls = [];
@@ -178,10 +178,10 @@ function apps_exhibition_handle_form() {
         $text = sanitize_text_field( trim( $download_texts[ $i ] ?? '' ) );
 
         if ( ! empty( $url ) && ! empty( $text ) ) {
-            // 先对 URL 做兼容性处理（编码 path/query/fragment），再校验
+            // 先对 URL 做兼容性处理（编码 path/query/fragment），再做格式与协议白名单校验
             $normalized_url = sanitize_and_normalize_url( $url );
-            if ( ! filter_var( $normalized_url, FILTER_VALIDATE_URL ) ) {
-                add_settings_error( 'apps_exhibition_messages', 'error', sprintf( __( '第%d个下载链接格式无效。', 'apps-exhibition' ), $i + 1 ), 'error' );
+            if ( ! Apps_Exhibition::is_safe_url( $normalized_url ) ) {
+                add_settings_error( 'apps_exhibition_messages', 'error', sprintf( __( '第%d个下载链接无效（仅支持 http/https 链接）。', 'apps-exhibition' ), $i + 1 ), 'error' );
                 return false;
             }
             if ( count( $downloads ) >= 3 ) {
@@ -242,6 +242,11 @@ function apps_exhibition_handle_form_post() {
     if ( $result === true ) {
         $msg_code = ( isset( $_POST['app_id'] ) && intval( $_POST['app_id'] ) > 0 ) ? 'updated' : 'inserted';
     } else {
+        // 暂存具体校验错误，跳转后由列表页还原展示（见 templates/admin-page.php）
+        $errors = get_settings_errors( 'apps_exhibition_messages' );
+        if ( ! empty( $errors ) ) {
+            set_transient( Apps_Exhibition::FORM_ERRORS_TRANSIENT . get_current_user_id(), $errors, 60 );
+        }
         $msg_code = 'error';
     }
     wp_safe_redirect( add_query_arg( 'message', $msg_code, $redirect_url ) );
@@ -300,6 +305,95 @@ function apps_exhibition_handle_bulk_delete() {
 
     wp_safe_redirect( add_query_arg( 'message', 'deleted', admin_url( 'admin.php?page=apps-exhibition' ) ) );
     exit;
+}
+
+/**
+ * 批量移动分类：将所选应用的源分类替换为目标分类（源为空时覆盖全部分类）。
+ *
+ * 主要用于分类重命名后的数据迁移：在「分类设置」中改名后，历史应用
+ * 仍挂旧分类名，此处批量勾选并移动到新分类完成迁移。
+ *
+ * 两种语义：
+ * - source 为具体分类：仅替换该分类，应用的其他分类保留（不含源分类的应用跳过）
+ * - source 为空（"全部"）：所选应用的分类整体覆盖为目标分类
+ */
+function apps_exhibition_handle_bulk_move() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( __( '无权限访问', 'apps-exhibition' ) );
+    }
+    check_admin_referer( 'apps_exhibition_bulk_move' );
+
+    // app_ids 为模态框 JS 汇总勾选项生成的逗号分隔串
+    $ids_raw = isset( $_POST['app_ids'] ) ? wp_unslash( $_POST['app_ids'] ) : '';
+    $ids     = array_filter( array_map( 'intval', explode( ',', $ids_raw ) ) );
+
+    $source = isset( $_POST['source_category'] ) ? sanitize_text_field( wp_unslash( $_POST['source_category'] ) ) : '';
+    $target = isset( $_POST['target_category'] ) ? sanitize_text_field( wp_unslash( $_POST['target_category'] ) ) : '';
+
+    // 目标分类必须存在于当前筛选分类列表（与「分类设置」实时同步的白名单）
+    $valid_categories = Apps_Exhibition::get_instance()->get_filter_categories();
+
+    $redirect = function ( $code ) {
+        wp_safe_redirect( add_query_arg( 'message', $code, admin_url( 'admin.php?page=apps-exhibition' ) ) );
+        exit;
+    };
+
+    if ( empty( $ids ) || '' === $target || ! in_array( $target, $valid_categories, true ) ) {
+        $redirect( 'bulk_move_error' );
+    }
+
+    if ( '' !== $source && $source === $target ) {
+        $redirect( 'bulk_move_same' );
+    }
+
+    global $wpdb;
+    $table = $wpdb->prefix . 'apps_exhibition';
+
+    // 一次性取回所选应用的当前分类，PHP 内完成替换后逐条回写
+    $ids_csv = implode( ',', array_map( 'intval', $ids ) );
+    $rows    = $wpdb->get_results( "SELECT id, app_filter_category FROM {$table} WHERE id IN ({$ids_csv})", ARRAY_A );
+
+    if ( empty( $rows ) ) {
+        $redirect( 'bulk_move_error' );
+    }
+
+    $moved = 0;
+    foreach ( $rows as $row ) {
+        $cats = array_values( array_filter( array_map( 'trim', explode( ',', $row['app_filter_category'] ) ) ) );
+
+        if ( '' === $source ) {
+            // 覆盖模式：分类直接设为目标分类
+            $new_cats = [ $target ];
+        } else {
+            // 替换模式：仅将源分类换成目标分类（保持原位置），不含源分类的应用跳过
+            $key = array_search( $source, $cats, true );
+            if ( false === $key ) {
+                continue;
+            }
+            $cats[ $key ] = $target;
+            $new_cats     = array_values( array_unique( $cats ) );
+        }
+
+        $new_str = implode( ',', $new_cats );
+        if ( $new_str === $row['app_filter_category'] ) {
+            continue;
+        }
+
+        $wpdb->update(
+            $table,
+            [ 'app_filter_category' => $new_str ],
+            [ 'id' => $row['id'] ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+        $moved++;
+    }
+
+    if ( $moved > 0 ) {
+        Apps_Exhibition::clear_frontend_cache();
+    }
+
+    $redirect( 'bulk_moved' );
 }
 
 function apps_exhibition_admin_page() {
