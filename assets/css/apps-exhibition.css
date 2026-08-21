@@ -445,15 +445,15 @@
    - 平台标签全部显示
    =========================================== */
 @media (max-width: 768px) {
-    /* 海报容器移动端适配 */
+    /* 海报容器移动端适配：与桌面统一 16:6，避免两端不同比例导致裁切 */
     #apps-exhibition-root .home-posters-container {
-        aspect-ratio: 16 / 9;
+        aspect-ratio: 16 / 6;
         margin-bottom: 15px;
     }
 
-    @supports not (aspect-ratio: 16/9) {
+    @supports not (aspect-ratio: 16/6) {
         #apps-exhibition-root .home-posters-container {
-            padding-bottom: 56.25%;
+            padding-bottom: 37.5%;
         }
     }
 
