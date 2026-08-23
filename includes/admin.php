@@ -113,6 +113,58 @@ function apps_exhibition_parse_downloads( $raw ) {
 }
 
 /**
+ * 删除媒体库中不再被任何应用或首页海报引用的图片（孤儿图片）。
+ *
+ * 仅当图片同时满足以下条件时才会被删除：
+ * 1. 位于本站媒体库（外链图片自动跳过）；
+ * 2. 不再被任何应用的 app_icon 引用；
+ * 3. 不再被首页海报 option 引用（含尚未迁移的旧 key）。
+ * wp_delete_attachment( $id, true ) 会连同所有缩略图尺寸一并删除。
+ *
+ * @param string[] $urls 待检查的图片 URL 列表。
+ */
+function apps_exhibition_delete_orphan_attachments( array $urls ) {
+    global $wpdb;
+
+    $table = $wpdb->prefix . 'apps_exhibition';
+    $urls  = array_unique( array_filter( array_map( 'trim', $urls ) ) );
+
+    foreach ( $urls as $url ) {
+        if ( '' === $url ) {
+            continue;
+        }
+
+        // 解析为媒体库附件 ID；外链或已不存在的图片返回 0，直接跳过
+        $attachment_id = attachment_url_to_postid( $url );
+        if ( ! $attachment_id || ! get_post( $attachment_id ) ) {
+            continue;
+        }
+
+        // 仍被其他应用作为图标引用则保留
+        $used_by_app = (int) $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE app_icon = %s", $url )
+        );
+        if ( $used_by_app > 0 ) {
+            continue;
+        }
+
+        // 仍被首页海报引用则保留（get_home_posters 已兼容新旧 option key）
+        $used_by_poster = false;
+        foreach ( Apps_Exhibition::get_home_posters() as $poster ) {
+            if ( isset( $poster['url'] ) && $poster['url'] === $url ) {
+                $used_by_poster = true;
+                break;
+            }
+        }
+        if ( $used_by_poster ) {
+            continue;
+        }
+
+        wp_delete_attachment( $attachment_id, true );
+    }
+}
+
+/**
  * 处理表单提交（新增 / 编辑应用）
  */
 function apps_exhibition_handle_form() {
@@ -265,10 +317,17 @@ function apps_exhibition_handle_delete() {
 
     global $wpdb;
     $table = $wpdb->prefix . 'apps_exhibition';
+
+    // 删除前先取回图标 URL，删除成功后据此清理媒体库孤儿图片
+    $icon_url = $wpdb->get_var( $wpdb->prepare( "SELECT app_icon FROM {$table} WHERE id = %d", $id ) );
+
     $deleted = $wpdb->delete( $table, [ 'id' => $id ], [ '%d' ] );
 
     if ( $deleted !== false ) {
         Apps_Exhibition::clear_frontend_cache();
+        if ( $icon_url ) {
+            apps_exhibition_delete_orphan_attachments( [ $icon_url ] );
+        }
     }
 
     $msg_code = ( $deleted === false ) ? 'delete_error' : 'deleted';
@@ -291,6 +350,10 @@ function apps_exhibition_handle_bulk_delete() {
     global $wpdb;
     $table = $wpdb->prefix . 'apps_exhibition';
 
+    // 删除前先取回各应用的图标 URL，删除成功后据此清理媒体库孤儿图片
+    $ids_csv = implode( ',', array_map( 'intval', $ids ) );
+    $icon_urls = $wpdb->get_col( "SELECT app_icon FROM {$table} WHERE id IN ({$ids_csv})" );
+
     $deleted_count = 0;
     foreach ( $ids as $id ) {
         $id = intval( $id );
@@ -301,6 +364,7 @@ function apps_exhibition_handle_bulk_delete() {
 
     if ( $deleted_count > 0 ) {
         Apps_Exhibition::clear_frontend_cache();
+        apps_exhibition_delete_orphan_attachments( $icon_urls );
     }
 
     wp_safe_redirect( add_query_arg( 'message', 'deleted', admin_url( 'admin.php?page=apps-exhibition' ) ) );

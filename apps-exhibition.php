@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.10
+ * Version: 2.0.11
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -23,7 +23,7 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.10';
+    const VERSION = '2.0.11';
 
     /**
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
@@ -597,10 +597,26 @@ final class Apps_Exhibition {
         }, $posters );
 
         $posters = array_values( $posters );
+
+        // 记录被本次保存移除的海报图片，保存后清理媒体库孤儿图片
+        $old_urls = [];
+        foreach ( Apps_Exhibition::get_home_posters() as $poster ) {
+            if ( isset( $poster['url'] ) && '' !== $poster['url'] ) {
+                $old_urls[] = $poster['url'];
+            }
+        }
+        $new_urls = wp_list_pluck( $posters, 'url' );
+        $removed_urls = array_diff( $old_urls, $new_urls );
+
         update_option( self::POSTERS_OPTION, $posters );
         delete_option( self::POSTERS_OPTION_OLD );
 
         self::clear_frontend_cache();
+
+        // 清理不再被任何应用或海报引用的媒体库图片（仍被引用的会自动跳过）
+        if ( ! empty( $removed_urls ) && function_exists( 'apps_exhibition_delete_orphan_attachments' ) ) {
+            apps_exhibition_delete_orphan_attachments( $removed_urls );
+        }
 
         wp_safe_redirect( add_query_arg( [ 'message' => 'home_posters_saved' ], wp_get_referer() ) );
         exit;
