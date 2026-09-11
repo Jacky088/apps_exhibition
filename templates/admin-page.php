@@ -195,6 +195,7 @@ settings_errors( 'apps_exhibition_messages' );
                         <label><?php esc_html_e( '应用图标', 'apps-exhibition' ); ?> <span class="required">*</span></label>
                         <div class="ae-icon-field">
                             <input type="hidden" name="app_icon" id="app_icon" value="" required />
+                            <input type="hidden" name="removed_icon_url" id="ae-removed-icon-url" value="" />
                             <div id="app_icon_preview" class="ae-icon-preview"></div>
                             <button type="button" class="button" id="upload_icon_button"><?php esc_html_e( '上传图标', 'apps-exhibition' ); ?></button>
                             <button type="button" class="button" id="remove_icon_button"><?php esc_html_e( '移除', 'apps-exhibition' ); ?></button>
@@ -237,6 +238,40 @@ settings_errors( 'apps_exhibition_messages' );
                         <button type="button" class="button" id="ae-form-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移除图标二次确认模态框 -->
+    <div class="ae-modal-overlay" id="ae-icon-remove-overlay" style="display:none;">
+        <div class="ae-modal ae-confirm-modal">
+            <div class="ae-modal-header">
+                <h2><?php esc_html_e( '确认移除应用图标？', 'apps-exhibition' ); ?></h2>
+                <button type="button" class="ae-modal-close" id="ae-icon-remove-close">&times;</button>
+            </div>
+            <div class="ae-modal-body">
+                <div class="ae-icon-remove-preview-wrap">
+                    <div id="ae-icon-remove-preview" class="ae-icon-preview"></div>
+                    <p class="ae-confirm-lead"><?php esc_html_e( '即将移除以下图标：', 'apps-exhibition' ); ?></p>
+                </div>
+
+                <p class="ae-confirm-lead"><?php esc_html_e( '移除后会产生以下影响：', 'apps-exhibition' ); ?></p>
+                <ul class="ae-confirm-list">
+                    <li><?php esc_html_e( '图标会立即从当前应用的表单预览中清除；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '点击「保存」后，该图片会从 WordPress 媒体库中被永久删除（含各种缩略图尺寸），删除后无法恢复；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '若该图片仍被其他应用或首页海报引用，则会自动保留，不会误删；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '未点击「保存」前关闭本窗口，不会删除任何图片。', 'apps-exhibition' ); ?></li>
+                </ul>
+
+                <p class="ae-confirm-notice">
+                    <span class="dashicons dashicons-warning"></span>
+                    <span><?php esc_html_e( '温馨提示：移除后请重新上传图标并点击「保存」，修改才会生效；如需保留原图，请先点击「取消」。', 'apps-exhibition' ); ?></span>
+                </p>
+
+                <div class="ae-form-actions">
+                    <button type="button" class="button ae-btn-danger" id="ae-icon-remove-confirm"><?php esc_html_e( '确认移除', 'apps-exhibition' ); ?></button>
+                    <button type="button" class="button" id="ae-icon-remove-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
+                </div>
             </div>
         </div>
     </div>
@@ -328,6 +363,11 @@ settings_errors( 'apps_exhibition_messages' );
         <?php esc_html_e( '建议海报尺寸 1920×720 像素（宽高比 16:6）。PC 与移动端均采用 16:6 统一比例，按此尺寸上传可两端完整显示无裁切；尺寸或比例不符时将自动居中裁切适配。', 'apps-exhibition' ); ?>
     </p>
     <button type="button" class="button" id="upload_home_poster"><?php esc_html_e( '上传海报', 'apps-exhibition' ); ?></button>
+
+    <p class="ae-poster-sort-hint">
+        <span class="dashicons dashicons-move"></span>
+        <span><?php esc_html_e( '排序：按住海报卡片左上角的「拖拽手柄」即可调整顺序（下方预览区与配置区双向同步）。调整后请点击「保存海报配置」生效，前端轮播将按此顺序展示。', 'apps-exhibition' ); ?></span>
+    </p>
 
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">
         <?php wp_nonce_field( 'save_home_posters_nonce' ); ?>

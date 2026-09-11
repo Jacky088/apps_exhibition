@@ -524,3 +524,160 @@
     font-size: 12px;
     color: #666;
 }
+
+/* === 二次确认弹窗（移除图标等） === */
+.ae-confirm-modal {
+    width: 460px;
+}
+
+.ae-icon-remove-preview-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.ae-icon-remove-preview-wrap .ae-icon-preview {
+    width: 64px;
+    height: 64px;
+}
+
+.ae-confirm-lead {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d2327;
+}
+
+.ae-confirm-list {
+    margin: 0 0 16px;
+    padding-left: 20px;
+    list-style: disc;
+}
+
+.ae-confirm-list li {
+    margin-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #50575e;
+}
+
+.ae-confirm-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 20px;
+    padding: 10px 12px;
+    background: #fcf3e6;
+    border: 1px solid #f0d9b5;
+    border-radius: 6px;
+    color: #8a5a00;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.ae-confirm-notice .dashicons {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 1px;
+    font-size: 18px;
+    color: #dba617;
+}
+
+.ae-confirm-modal .ae-form-actions {
+    margin-top: 0;
+}
+
+.ae-btn-danger {
+    color: #fff !important;
+    background: #d63638 !important;
+    border-color: #d63638 !important;
+}
+
+.ae-btn-danger:hover,
+.ae-btn-danger:focus {
+    background: #b32d2e !important;
+    border-color: #b32d2e !important;
+    color: #fff !important;
+}
+
+/* === 首页海报排序 === */
+.ae-poster-sort-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 12px 0 0;
+    padding: 8px 12px;
+    background: #f0f7fc;
+    border: 1px solid #c3ddf1;
+    border-radius: 6px;
+    color: #1d5f8a;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.ae-poster-sort-hint .dashicons {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    color: #007cba;
+}
+
+.poster-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-bottom: 6px;
+    padding: 2px 6px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #666;
+    line-height: 1;
+    cursor: grab;
+    user-select: none;
+}
+
+.poster-drag-handle:hover {
+    border-color: #007cba;
+    color: #007cba;
+}
+
+.poster-drag-handle:active {
+    cursor: grabbing;
+}
+
+.poster-drag-handle .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+}
+
+.poster-drag-handle .poster-order {
+    font-size: 12px;
+    font-weight: 600;
+    color: #007cba;
+}
+
+/* 拖拽占位符：区分两个列表的排列方式 */
+.poster-sortable-placeholder {
+    visibility: visible !important;
+    border: 2px dashed #007cba;
+    border-radius: 8px;
+    background: #f0f7ff;
+}
+
+#poster_preview_container .poster-sortable-placeholder {
+    display: inline-block;
+    width: 150px;
+    height: 170px;
+    vertical-align: top;
+}
+
+#poster_config_list .poster-sortable-placeholder {
+    display: block;
+    height: 130px;
+    margin-bottom: 10px;
+}

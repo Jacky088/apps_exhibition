@@ -14,6 +14,7 @@ jQuery(document).ready(function($) {
     // 模态框
     // =============================================
     var $overlay = $('#ae-modal-overlay');
+    var $iconRemoveOverlay = $('#ae-icon-remove-overlay');
     var $form = $('#apps-exhibition-form');
     var $title = $('#ae-modal-title');
 
@@ -22,6 +23,7 @@ jQuery(document).ready(function($) {
         $('#ae-form-app-id').val(0);
         $('#app_icon').val('');
         $('#app_icon_preview').css('background-image', 'none');
+        $('#ae-removed-icon-url').val('');
         $('#downloads_container').html(getDownloadItemHtml('', ''));
         updateAddDownloadBtn();
         $form.find('input[type="checkbox"]').prop('checked', false);
@@ -69,7 +71,12 @@ jQuery(document).ready(function($) {
     $('#ae-add-app-btn').on('click', function() { openModal('add'); });
     $('#ae-modal-close, #ae-form-cancel').on('click', closeModal);
     $overlay.on('click', function(e) { if ($(e.target).is($overlay)) closeModal(); });
-    $(document).on('keydown', function(e) { if (e.key === 'Escape' && $overlay.is(':visible')) closeModal(); });
+    $(document).on('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        // 移除图标确认弹窗优先关闭，避免同时关掉下层的应用编辑弹窗
+        if ($iconRemoveOverlay.is(':visible')) { $iconRemoveOverlay.fadeOut(200); return; }
+        if ($overlay.is(':visible')) closeModal();
+    });
 
     $(document).on('click', '.ae-edit-btn', function() {
         var $row = $(this).closest('tr');
@@ -128,10 +135,34 @@ jQuery(document).ready(function($) {
         iconUploader.open();
     });
 
-    $('#remove_icon_button').on('click', function(e) {
-        e.preventDefault();
+    function clearIconField() {
         $('#app_icon').val('');
         $('#app_icon_preview').css('background-image', 'none');
+    }
+
+    $('#remove_icon_button').on('click', function(e) {
+        e.preventDefault();
+        // 未选择图标时无需二次确认，直接清空
+        if (!$('#app_icon').val()) { clearIconField(); return; }
+
+        // 展示待移除图标的预览，配合影响说明帮助用户确认
+        $('#ae-icon-remove-preview').css('background-image', 'url(' + $('#app_icon').val() + ')');
+        $iconRemoveOverlay.fadeIn(200);
+    });
+
+    $('#ae-icon-remove-confirm').on('click', function() {
+        // 记录被移除的图标 URL，保存时由后端联动清理媒体库孤儿图片
+        $('#ae-removed-icon-url').val($('#app_icon').val());
+        clearIconField();
+        $iconRemoveOverlay.fadeOut(200);
+    });
+
+    $('#ae-icon-remove-close, #ae-icon-remove-cancel').on('click', function() {
+        $iconRemoveOverlay.fadeOut(200);
+    });
+
+    $iconRemoveOverlay.on('click', function(e) {
+        if ($(e.target).is($iconRemoveOverlay)) { $iconRemoveOverlay.fadeOut(200); }
     });
 
     // =============================================
@@ -387,26 +418,49 @@ jQuery(document).ready(function($) {
             catch(e) { return []; }
         }
 
-        function renderHomePosters(posters) {
-            var preview = '', config = '';
+        // 拖拽手柄（含顺序序号）：按住手柄可调整海报顺序
+        function posterHandleHtml(order) {
+            return '<div class="poster-drag-handle" title="' + escAttr(l10n.dragToSort || '拖拽调整顺序') + '">' +
+                '<span class="dashicons dashicons-move"></span>' +
+                '<span class="poster-order">' + order + '</span>' +
+                '</div>';
+        }
+
+        // 每个条目写入 data-index（当前数组下标），拖拽后据此还原新顺序
+        function renderPreview(posters) {
+            var preview = '';
             for (var i = 0; i < posters.length; i++) {
-                preview += '<div class="poster-item" style="position:relative; display:inline-block; margin-right:10px;">' +
+                preview += '<div class="poster-item" data-index="' + i + '" style="position:relative; display:inline-block; margin-right:10px;">' +
+                    posterHandleHtml(i + 1) +
                     '<img src="' + escAttr(posters[i].url) + '" style="max-width:150px; max-height:150px; border:1px solid #ccc; border-radius:8px;" />' +
                     '<div style="margin-top:4px; text-align:center;">' +
                     '<button type="button" class="button change-poster">' + (l10n.changePosterBtn || '更换图片') + '</button> ' +
                     '<button type="button" class="button remove-poster">' + (l10n.removePosterBtn || '删除海报') + '</button>' +
                     '</div></div>';
+            }
+            $('#poster_preview_container').html(preview);
+        }
 
-                config += '<div class="poster-config-item" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display:flex; align-items:flex-start; gap:15px;">' +
-                    '<div style="flex:0 0 auto;"><img src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;"></div>' +
+        function renderConfig(posters) {
+            var config = '';
+            for (var i = 0; i < posters.length; i++) {
+                config += '<div class="poster-config-item" data-index="' + i + '" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display:flex; align-items:flex-start; gap:15px;">' +
+                    '<div style="flex:0 0 auto; text-align:center;">' +
+                    posterHandleHtml(i + 1) +
+                    '<img src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;">' +
+                    '</div>' +
                     '<div style="flex:1 1 auto; display:flex; flex-direction:column; gap:10px;">' +
                     '<div><button type="button" class="button remove-poster-conf">' + (l10n.deleteBtn || '删除') + '</button></div>' +
                     '<div><input type="text" class="widefat download-url-input" placeholder="' + (l10n.downloadAddrPlc || '下载地址') + '" value="' + escAttr(posters[i].download_url || '') + '"></div>' +
                     '<div><input type="text" class="widefat download-text-input" placeholder="' + (l10n.downloadTextPlc || '按钮文字') + '" value="' + escAttr(posters[i].download_text || '') + '"></div>' +
                     '</div></div>';
             }
-            $('#poster_preview_container').html(preview);
             $('#poster_config_list').html(config);
+        }
+
+        function renderHomePosters(posters) {
+            renderPreview(posters);
+            renderConfig(posters);
         }
 
         var uploadFrame = null, changeFrame = null, changeIdx = -1, MAX_POSTERS = 10;
@@ -470,6 +524,59 @@ jQuery(document).ready(function($) {
             $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
         });
 
+        // =============================================
+        // 海报排序（拖拽手柄调整顺序；保存后前端轮播按此顺序展示）
+        // =============================================
+        // 读取被拖拽容器内的 DOM 顺序，还原海报数组，写回隐藏域并同步刷新两个列表
+        function applyPosterOrder($container, itemSelector) {
+            var order = [];
+            $container.children(itemSelector).each(function() {
+                order.push(parseInt($(this).attr('data-index'), 10));
+            });
+
+            var cur = getPostersArray();
+            // 仅当顺序恰为 0..n-1 的完整排列时才应用，避免异常 DOM 导致数据错乱
+            if (order.length !== cur.length) return;
+            var sorted = order.slice().sort(function(a, b) { return a - b; });
+            for (var k = 0; k < sorted.length; k++) {
+                if (sorted[k] !== k) return;
+            }
+
+            var next = order.map(function(i) { return cur[i]; });
+            $(HOME_POSTERS_INPUT).val(JSON.stringify(next));
+
+            // 延后到本次拖拽完全结束后再重绘两个列表，避免与 jQuery UI 内部清理冲突
+            setTimeout(function() {
+                renderHomePosters(next);
+                showToast(l10n.posterOrderChanged || '顺序已调整，请点击「保存海报配置」生效');
+            }, 0);
+        }
+
+        var posterSortableReady = false;
+        function initPosterSortable() {
+            if (posterSortableReady) return;
+            posterSortableReady = true;
+
+            var baseOptions = {
+                handle: '.poster-drag-handle',
+                placeholder: 'poster-sortable-placeholder',
+                forcePlaceholderSize: true,
+                tolerance: 'pointer'
+            };
+
+            $('#poster_preview_container').sortable($.extend({}, baseOptions, {
+                items: '> .poster-item',
+                update: function() { applyPosterOrder($(this), '.poster-item'); }
+            }));
+
+            $('#poster_config_list').sortable($.extend({}, baseOptions, {
+                items: '> .poster-config-item',
+                axis: 'y',
+                update: function() { applyPosterOrder($(this), '.poster-config-item'); }
+            }));
+        }
+
+        initPosterSortable();
         renderHomePosters(getPostersArray());
     })();
 });

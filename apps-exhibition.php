@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.11
+ * Version: 2.0.13
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
  * Text Domain: apps-exhibition
@@ -23,7 +23,7 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.11';
+    const VERSION = '2.0.13';
 
     /**
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
@@ -538,6 +538,8 @@ final class Apps_Exhibition {
             'insertBtn'          => __( '插入', 'apps-exhibition' ),
             'changePosterBtn'    => __( '更换图片', 'apps-exhibition' ),
             'removePosterBtn'    => __( '删除海报', 'apps-exhibition' ),
+            'dragToSort'         => __( '拖拽调整顺序', 'apps-exhibition' ),
+            'posterOrderChanged' => __( '顺序已调整，请点击「保存海报配置」生效', 'apps-exhibition' ),
             'deleteBtn'          => __( '删除', 'apps-exhibition' ),
             'downloadUrlPlc'     => __( '下载链接 URL', 'apps-exhibition' ),
             'downloadTextPlc'    => __( '按钮文字', 'apps-exhibition' ),

@@ -263,14 +263,20 @@ function apps_exhibition_handle_form() {
     ];
     $formats = [ '%s', '%s', '%s', '%s', '%s', '%s' ];
 
+    // 后台「移除图标」按钮确认移除时记录的被移除 URL，保存成功后据此清理媒体库图片
+    $removed_icon = isset( $_POST['removed_icon_url'] ) ? esc_url_raw( wp_unslash( $_POST['removed_icon_url'] ) ) : '';
+
     if ( $id > 0 ) {
+        // 更新前取回数据库中的旧图标，兼容未点击「移除」而直接更换图标的场景
+        $old_icon = (string) $wpdb->get_var( $wpdb->prepare( "SELECT app_icon FROM {$table} WHERE id = %d", $id ) );
+
         $updated = $wpdb->update( $table, $data, [ 'id' => $id ], $formats, [ '%d' ] );
         if ( $updated === false ) {
             add_settings_error( 'apps_exhibition_messages', 'error', __( '更新应用失败。', 'apps-exhibition' ), 'error' );
             return false;
         }
         Apps_Exhibition::clear_frontend_cache();
-        return true;
+        $cleanup_urls = [ $removed_icon, $old_icon ];
     } else {
         $inserted = $wpdb->insert( $table, $data, $formats );
         if ( ! $inserted ) {
@@ -278,8 +284,20 @@ function apps_exhibition_handle_form() {
             return false;
         }
         Apps_Exhibition::clear_frontend_cache();
-        return true;
+        $cleanup_urls = [ $removed_icon ];
     }
+
+    // 清理已被移除/替换、且不再被任何应用或首页海报引用的媒体库图片。
+    // 与新图标相同的 URL 需排除，避免移除后又重新上传同一张图被误删。
+    $cleanup_urls = array_unique( array_filter( $cleanup_urls, function ( $url ) use ( $app_icon ) {
+        return '' !== $url && $url !== $app_icon;
+    } ) );
+
+    if ( ! empty( $cleanup_urls ) && function_exists( 'apps_exhibition_delete_orphan_attachments' ) ) {
+        apps_exhibition_delete_orphan_attachments( $cleanup_urls );
+    }
+
+    return true;
 }
 
 function apps_exhibition_handle_form_post() {
