@@ -3,9 +3,13 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.13
+ * Version: 2.0.14
+ * Requires at least: 5.6
+ * Requires PHP: 7.4
  * Author: 木木
  * Author URI: https://github.com/Jacky088/apps_exhibition
+ * License: MIT
+ * License URI: https://opensource.org/licenses/MIT
  * Text Domain: apps-exhibition
  */
 
@@ -23,7 +27,7 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.13';
+    const VERSION = '2.0.14';
 
     /**
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，

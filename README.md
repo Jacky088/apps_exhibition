@@ -126,6 +126,9 @@ apps_exhibition/
 
 ## 更新日志
 
+### v2.0.14
+- 补全插件信息：声明最低运行环境 `Requires at least: 5.6`、`Requires PHP: 7.4`，并补充 License 信息
+
 ### v2.0.13
 - 首页海报支持拖拽排序：按住卡片序号手柄调整顺序，预览区与配置区双向同步
 - 排序写回 `home_posters`，保存后前端轮播按新顺序展示
