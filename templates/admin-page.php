@@ -366,7 +366,7 @@ settings_errors( 'apps_exhibition_messages' );
 
     <p class="ae-poster-sort-hint">
         <span class="dashicons dashicons-move"></span>
-        <span><?php esc_html_e( '排序：按住海报卡片左上角的「拖拽手柄」即可调整顺序（下方预览区与配置区双向同步）。调整后请点击「保存海报配置」生效，前端轮播将按此顺序展示。', 'apps-exhibition' ); ?></span>
+        <span><?php esc_html_e( '排序：按住海报卡片左上角的「拖拽手柄」即可调整顺序。调整后请点击「保存海报配置」生效，前端轮播将按此顺序展示。', 'apps-exhibition' ); ?></span>
     </p>
 
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">
@@ -374,29 +374,25 @@ settings_errors( 'apps_exhibition_messages' );
         <input type="hidden" name="action" value="save_home_posters" />
         <input type="hidden" name="home_posters" id="home_posters" value="<?php echo esc_attr( wp_json_encode( $home_posters ) ); ?>" />
 
-        <div id="poster_preview_container" style="margin-bottom:20px;">
-            <?php foreach ( $home_posters as $poster ) :
-                if ( is_array( $poster ) && isset( $poster['url'] ) ) :
-            ?>
-            <div class="poster-item" style="position: relative; display: inline-block; margin-right: 10px;">
-                <img src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:150px; max-height:150px; border:1px solid #ccc; border-radius:8px;" />
-                <div style="margin-top:4px; text-align:center;">
-                    <button type="button" class="button change-poster"><?php esc_html_e( '更换图片', 'apps-exhibition' ); ?></button>
-                    <button type="button" class="button remove-poster"><?php esc_html_e( '删除海报', 'apps-exhibition' ); ?></button>
-                </div>
-            </div>
-            <?php endif; endforeach; ?>
-        </div>
-
-        <h3><?php esc_html_e( '配置下载链接与按钮文字', 'apps-exhibition' ); ?></h3>
+        <h3 style="margin-top:20px;"><?php esc_html_e( '配置海报图片、下载链接与按钮文字', 'apps-exhibition' ); ?></h3>
         <div id="poster_config_list">
-            <?php foreach ( $home_posters as $poster ) :
+            <?php $poster_index = 0; foreach ( $home_posters as $poster ) :
                 if ( is_array( $poster ) && isset( $poster['url'] ) ) :
+                    $poster_index++;
             ?>
-            <div class="poster-config-item" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display: flex; align-items: flex-start; gap: 15px;">
-                <div style="flex: 0 0 auto;"><img src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:200px; max-height:150px; border-radius: 6px;"></div>
+            <div class="poster-config-item" data-index="<?php echo esc_attr( $poster_index - 1 ); ?>" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display: flex; align-items: flex-start; gap: 15px;">
+                <div style="flex: 0 0 auto; text-align: center;">
+                    <div class="poster-drag-handle" title="<?php esc_attr_e( '拖拽调整顺序', 'apps-exhibition' ); ?>">
+                        <span class="dashicons dashicons-move"></span>
+                        <span class="poster-order"><?php echo esc_html( $poster_index ); ?></span>
+                    </div>
+                    <img src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:200px; max-height:150px; border-radius: 6px;">
+                    <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
+                        <button type="button" class="button button-small change-poster-conf"><?php esc_html_e( '更换图片', 'apps-exhibition' ); ?></button>
+                        <button type="button" class="button button-small remove-poster-conf"><?php esc_html_e( '删除图片', 'apps-exhibition' ); ?></button>
+                    </div>
+                </div>
                 <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 10px;">
-                    <div><button type="button" class="button remove-poster-conf"><?php esc_html_e( '删除', 'apps-exhibition' ); ?></button></div>
                     <div><input type="text" class="widefat download-url-input" placeholder="<?php esc_attr_e( '下载地址', 'apps-exhibition' ); ?>" value="<?php echo esc_attr( $poster['download_url'] ?? '' ); ?>"></div>
                     <div><input type="text" class="widefat download-text-input" placeholder="<?php esc_attr_e( '按钮文字', 'apps-exhibition' ); ?>" value="<?php echo esc_attr( $poster['download_text'] ?? '' ); ?>"></div>
                 </div>
@@ -406,6 +402,47 @@ settings_errors( 'apps_exhibition_messages' );
 
         <p><input type="submit" class="button-primary" value="<?php esc_attr_e( '保存海报配置', 'apps-exhibition' ); ?>"></p>
     </form>
+
+    <!-- 海报图片「更换 / 删除」二次确认弹窗 -->
+    <div class="ae-modal-overlay" id="ae-poster-confirm-overlay" style="display:none;">
+        <div class="ae-modal ae-confirm-modal">
+            <div class="ae-modal-header">
+                <h2 id="ae-poster-confirm-title"><?php esc_html_e( '确认操作？', 'apps-exhibition' ); ?></h2>
+                <button type="button" class="ae-modal-close" id="ae-poster-confirm-close">&times;</button>
+            </div>
+            <div class="ae-modal-body">
+                <div class="ae-poster-confirm-preview-wrap">
+                    <figure class="ae-poster-confirm-figure">
+                        <div id="ae-poster-confirm-old" class="ae-poster-confirm-preview"></div>
+                        <figcaption><?php esc_html_e( '当前图片', 'apps-exhibition' ); ?></figcaption>
+                    </figure>
+                    <span class="ae-poster-confirm-arrow" id="ae-poster-confirm-arrow">&rarr;</span>
+                    <figure class="ae-poster-confirm-figure" id="ae-poster-confirm-new-wrap" style="display:none;">
+                        <div id="ae-poster-confirm-new" class="ae-poster-confirm-preview"></div>
+                        <figcaption><?php esc_html_e( '新图片', 'apps-exhibition' ); ?></figcaption>
+                    </figure>
+                </div>
+
+                <p class="ae-confirm-lead" id="ae-poster-confirm-lead"><?php esc_html_e( '即将执行以下操作：', 'apps-exhibition' ); ?></p>
+                <ul class="ae-confirm-list">
+                    <li><?php esc_html_e( '图片会立即从当前海报配置中移除或替换，页面预览同步更新；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '点击「保存海报配置」后，被移除或替换的图片将从 WordPress 媒体库中被永久删除（含各种缩略图尺寸），删除后无法恢复；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '若该图片仍被其他应用或其他海报引用，则会自动保留，不会误删；', 'apps-exhibition' ); ?></li>
+                    <li><?php esc_html_e( '未点击「保存海报配置」前，即使关闭窗口或刷新页面，也不会删除任何图片。', 'apps-exhibition' ); ?></li>
+                </ul>
+
+                <p class="ae-confirm-notice">
+                    <span class="dashicons dashicons-warning"></span>
+                    <span><?php esc_html_e( '温馨提示：图片删除将在点击「保存海报配置」后生效；如需保留原图，请先点击「取消」。', 'apps-exhibition' ); ?></span>
+                </p>
+
+                <div class="ae-form-actions">
+                    <button type="button" class="button ae-btn-danger" id="ae-poster-confirm-ok"><?php esc_html_e( '确认', 'apps-exhibition' ); ?></button>
+                    <button type="button" class="button" id="ae-poster-confirm-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 <?php else: ?>
     <p><?php esc_html_e( '请选择选项卡进行管理。', 'apps-exhibition' ); ?></p>

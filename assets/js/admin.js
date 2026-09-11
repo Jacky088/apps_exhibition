@@ -413,6 +413,8 @@ jQuery(document).ready(function($) {
         var HOME_POSTERS_INPUT = '#home_posters';
         if (!$(HOME_POSTERS_INPUT).length) return;
 
+        var MAX_POSTERS = parseInt(l10n.maxPosters, 10) || 10;
+
         function getPostersArray() {
             try { var arr = JSON.parse($(HOME_POSTERS_INPUT).val()); return Array.isArray(arr) ? arr : []; }
             catch(e) { return []; }
@@ -426,21 +428,8 @@ jQuery(document).ready(function($) {
                 '</div>';
         }
 
-        // 每个条目写入 data-index（当前数组下标），拖拽后据此还原新顺序
-        function renderPreview(posters) {
-            var preview = '';
-            for (var i = 0; i < posters.length; i++) {
-                preview += '<div class="poster-item" data-index="' + i + '" style="position:relative; display:inline-block; margin-right:10px;">' +
-                    posterHandleHtml(i + 1) +
-                    '<img src="' + escAttr(posters[i].url) + '" style="max-width:150px; max-height:150px; border:1px solid #ccc; border-radius:8px;" />' +
-                    '<div style="margin-top:4px; text-align:center;">' +
-                    '<button type="button" class="button change-poster">' + (l10n.changePosterBtn || '更换图片') + '</button> ' +
-                    '<button type="button" class="button remove-poster">' + (l10n.removePosterBtn || '删除海报') + '</button>' +
-                    '</div></div>';
-            }
-            $('#poster_preview_container').html(preview);
-        }
-
+        // 海报配置卡片：图片 + 更换/删除按钮 + 下载链接与按钮文字。
+        // 每个条目写入 data-index（当前数组下标），拖拽后据此还原新顺序。
         function renderConfig(posters) {
             var config = '';
             for (var i = 0; i < posters.length; i++) {
@@ -448,9 +437,12 @@ jQuery(document).ready(function($) {
                     '<div style="flex:0 0 auto; text-align:center;">' +
                     posterHandleHtml(i + 1) +
                     '<img src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;">' +
+                    '<div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">' +
+                    '<button type="button" class="button button-small change-poster-conf">' + (l10n.changePosterBtn || '更换图片') + '</button>' +
+                    '<button type="button" class="button button-small remove-poster-conf">' + (l10n.removePosterBtn || '删除图片') + '</button>' +
+                    '</div>' +
                     '</div>' +
                     '<div style="flex:1 1 auto; display:flex; flex-direction:column; gap:10px;">' +
-                    '<div><button type="button" class="button remove-poster-conf">' + (l10n.deleteBtn || '删除') + '</button></div>' +
                     '<div><input type="text" class="widefat download-url-input" placeholder="' + (l10n.downloadAddrPlc || '下载地址') + '" value="' + escAttr(posters[i].download_url || '') + '"></div>' +
                     '<div><input type="text" class="widefat download-text-input" placeholder="' + (l10n.downloadTextPlc || '按钮文字') + '" value="' + escAttr(posters[i].download_text || '') + '"></div>' +
                     '</div></div>';
@@ -459,11 +451,76 @@ jQuery(document).ready(function($) {
         }
 
         function renderHomePosters(posters) {
-            renderPreview(posters);
             renderConfig(posters);
         }
 
-        var uploadFrame = null, changeFrame = null, changeIdx = -1, MAX_POSTERS = 10;
+        // =============================================
+        // 更换 / 删除 图片 二次确认弹窗
+        // 确认后仅更新隐藏域与界面，图片实际删除在「保存海报配置」时由后端联动完成
+        // =============================================
+        var $posterConfirmOverlay = $('#ae-poster-confirm-overlay');
+        var posterConfirmTarget = null;
+
+        function openPosterConfirm(mode, index, newUrl) {
+            var cur = getPostersArray();
+            var oldUrl = (cur[index] && cur[index].url) ? cur[index].url : '';
+
+            posterConfirmTarget = { mode: mode, index: index, newUrl: newUrl || '' };
+
+            $('#ae-poster-confirm-old').css('background-image', oldUrl ? 'url("' + oldUrl + '")' : 'none');
+
+            if (mode === 'change') {
+                $('#ae-poster-confirm-title').text(l10n.confirmChangePosterTitle || '确认更换海报图片？');
+                $('#ae-poster-confirm-lead').text(l10n.confirmChangePosterLead || '即将用新选择的图片替换当前海报图片：');
+                $('#ae-poster-confirm-new').css('background-image', newUrl ? 'url("' + newUrl + '")' : 'none');
+                $('#ae-poster-confirm-new-wrap, #ae-poster-confirm-arrow').show();
+                $('#ae-poster-confirm-ok').text(l10n.confirmChangePosterBtn || '确认更换');
+            } else {
+                $('#ae-poster-confirm-title').text(l10n.confirmRemovePosterTitle || '确认删除海报图片？');
+                $('#ae-poster-confirm-lead').text(l10n.confirmRemovePosterLead || '即将删除以下海报图片：');
+                $('#ae-poster-confirm-new-wrap, #ae-poster-confirm-arrow').hide();
+                $('#ae-poster-confirm-ok').text(l10n.confirmRemovePosterBtn || '确认删除');
+            }
+
+            $posterConfirmOverlay.fadeIn(200);
+        }
+
+        function closePosterConfirm() {
+            $posterConfirmOverlay.fadeOut(200);
+            posterConfirmTarget = null;
+        }
+
+        $('#ae-poster-confirm-ok').on('click', function() {
+            if (!posterConfirmTarget) { closePosterConfirm(); return; }
+
+            var target = posterConfirmTarget;
+            var cur = getPostersArray();
+
+            if (target.mode === 'change') {
+                if (cur[target.index]) { cur[target.index].url = target.newUrl; }
+            } else if (cur[target.index]) {
+                cur.splice(target.index, 1);
+            }
+
+            $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
+            renderHomePosters(cur);
+            closePosterConfirm();
+        });
+
+        $('#ae-poster-confirm-close, #ae-poster-confirm-cancel').on('click', closePosterConfirm);
+
+        $posterConfirmOverlay.on('click', function(e) {
+            if ($(e.target).is($posterConfirmOverlay)) closePosterConfirm();
+        });
+
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && $posterConfirmOverlay.is(':visible')) closePosterConfirm();
+        });
+
+        // =============================================
+        // 上传 / 更换海报
+        // =============================================
+        var uploadFrame = null, changeFrame = null, changeIdx = -1;
 
         $('#upload_home_poster').on('click', function(e) {
             e.preventDefault();
@@ -481,35 +538,26 @@ jQuery(document).ready(function($) {
             uploadFrame.open();
         });
 
-        $('#poster_preview_container').on('click', '.change-poster', function(e) {
+        // 更换图片：先选新图，若与原图不同再弹二次确认；确认后旧图将在保存时联动删除
+        $('#poster_config_list').on('click', '.change-poster-conf', function(e) {
             e.preventDefault();
-            changeIdx = $(this).closest('.poster-item').index();
+            changeIdx = $(this).closest('.poster-config-item').index();
             if (changeFrame) { changeFrame.open(); return; }
             changeFrame = wp.media({ title: l10n.selectPosterTitle, button: { text: l10n.insertBtn }, multiple: false });
             changeFrame.on('select', function() {
                 var att = changeFrame.state().get('selection').first().toJSON();
                 var cur = getPostersArray();
-                if (cur[changeIdx]) { cur[changeIdx].url = att.url; }
-                $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
-                renderHomePosters(cur);
+                var oldUrl = (cur[changeIdx] && cur[changeIdx].url) ? cur[changeIdx].url : '';
+                if (att.url === oldUrl) { return; } // 未实际更换，无需确认
+                openPosterConfirm('change', changeIdx, att.url);
             });
             changeFrame.open();
         });
 
-        $('#poster_preview_container').on('click', '.remove-poster', function() {
-            var idx = $(this).closest('.poster-item').index();
-            var cur = getPostersArray();
-            if (idx >= 0) cur.splice(idx, 1);
-            $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
-            renderHomePosters(cur);
-        });
-
-        $('#poster_config_list').on('click', '.remove-poster-conf', function() {
-            var idx = $(this).closest('.poster-config-item').index();
-            var cur = getPostersArray();
-            if (idx >= 0) cur.splice(idx, 1);
-            $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
-            renderHomePosters(cur);
+        // 删除图片：直接弹二次确认
+        $('#poster_config_list').on('click', '.remove-poster-conf', function(e) {
+            e.preventDefault();
+            openPosterConfirm('remove', $(this).closest('.poster-config-item').index(), '');
         });
 
         $('#poster_config_list').on('input', '.download-url-input, .download-text-input', function() {
@@ -527,7 +575,7 @@ jQuery(document).ready(function($) {
         // =============================================
         // 海报排序（拖拽手柄调整顺序；保存后前端轮播按此顺序展示）
         // =============================================
-        // 读取被拖拽容器内的 DOM 顺序，还原海报数组，写回隐藏域并同步刷新两个列表
+        // 读取被拖拽容器内的 DOM 顺序，还原海报数组，写回隐藏域并重绘列表
         function applyPosterOrder($container, itemSelector) {
             var order = [];
             $container.children(itemSelector).each(function() {
@@ -545,7 +593,7 @@ jQuery(document).ready(function($) {
             var next = order.map(function(i) { return cur[i]; });
             $(HOME_POSTERS_INPUT).val(JSON.stringify(next));
 
-            // 延后到本次拖拽完全结束后再重绘两个列表，避免与 jQuery UI 内部清理冲突
+            // 延后到本次拖拽完全结束后再重绘，避免与 jQuery UI 内部清理冲突
             setTimeout(function() {
                 renderHomePosters(next);
                 showToast(l10n.posterOrderChanged || '顺序已调整，请点击「保存海报配置」生效');
@@ -557,23 +605,15 @@ jQuery(document).ready(function($) {
             if (posterSortableReady) return;
             posterSortableReady = true;
 
-            var baseOptions = {
+            $('#poster_config_list').sortable({
                 handle: '.poster-drag-handle',
-                placeholder: 'poster-sortable-placeholder',
-                forcePlaceholderSize: true,
-                tolerance: 'pointer'
-            };
-
-            $('#poster_preview_container').sortable($.extend({}, baseOptions, {
-                items: '> .poster-item',
-                update: function() { applyPosterOrder($(this), '.poster-item'); }
-            }));
-
-            $('#poster_config_list').sortable($.extend({}, baseOptions, {
                 items: '> .poster-config-item',
                 axis: 'y',
+                placeholder: 'poster-sortable-placeholder',
+                forcePlaceholderSize: true,
+                tolerance: 'pointer',
                 update: function() { applyPosterOrder($(this), '.poster-config-item'); }
-            }));
+            });
         }
 
         initPosterSortable();
