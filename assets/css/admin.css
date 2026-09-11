@@ -630,32 +630,30 @@
     display: flex;
     align-items: stretch;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .poster-media-row .poster-preview-img {
     align-self: center;
 }
 
+/* 双列圆点抓取条（⋮⋮）：无背景无边框，仅显示纹路 */
 .poster-drag-handle {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 5px;
+    gap: 6px;
     flex: 0 0 auto;
-    width: 28px;
-    padding: 7px 0;
-    box-sizing: border-box;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+    width: 14px;
+    padding: 0;
+    background: none;
+    border: none;
     color: #b4b9be;
     cursor: grab;
     user-select: none;
 }
 
 .poster-drag-handle:hover {
-    border-color: #007cba;
     color: #007cba;
 }
 
@@ -670,15 +668,15 @@
     line-height: 1;
 }
 
-/* 竖向抓取纹路：圆点纵向重复填充剩余高度，使手柄始终与海报等高 */
+/* 双列圆点纵向重复填充剩余高度，使手柄始终与海报等高 */
 .poster-drag-handle .poster-drag-grip {
     flex: 1 1 auto;
-    width: 8px;
+    width: 12px;
     min-height: 0;
-    background-image: radial-gradient(circle, currentColor 1.3px, transparent 1.4px);
-    background-size: 8px 10px;
+    background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.6px);
+    background-size: 6px 9px;
     background-repeat: repeat;
-    opacity: 0.55;
+    opacity: 0.6;
 }
 
 /* 拖拽占位符 */
