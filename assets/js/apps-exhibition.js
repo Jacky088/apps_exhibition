@@ -56,18 +56,67 @@
 
         if (filterButtons.length > 0 && appItems.length > 0) {
 
-            // 移动端：将激活的筛选按钮滚动到可视区域
+            // 将激活的筛选按钮滚动到可视区域（桌面与移动端通用）
             function scrollActiveFilterIntoView(activeBtn) {
-                if (window.innerWidth > 768) return;
                 var scrollWrap = activeBtn.closest('.filter-scroll');
                 if (!scrollWrap) return;
-                var btnLeft = activeBtn.offsetLeft;
-                var btnWidth = activeBtn.offsetWidth;
-                var wrapWidth = scrollWrap.clientWidth;
-                var scrollLeft = scrollWrap.scrollLeft;
-                var target = btnLeft - (wrapWidth / 2) + (btnWidth / 2);
-                scrollWrap.scrollTo({ left: target, behavior: 'smooth' });
+
+                var wrapRect = scrollWrap.getBoundingClientRect();
+                var btnRect = activeBtn.getBoundingClientRect();
+                var target = scrollWrap.scrollLeft + (btnRect.left - wrapRect.left)
+                    - (wrapRect.width / 2) + (btnRect.width / 2);
+
+                scrollWrap.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
             }
+
+            // === 筛选栏单行横向滚动导航（箭头仅在内容溢出时显示） ===
+            var filterScrollWrap = document.querySelector('.apps-exhibition-filter .filter-scroll');
+            var filterNavPrev = document.querySelector('.apps-exhibition-filter .filter-nav-prev');
+            var filterNavNext = document.querySelector('.apps-exhibition-filter .filter-nav-next');
+
+            function updateFilterNav() {
+                if (!filterScrollWrap) return;
+                var hasOverflow = (filterScrollWrap.scrollWidth - filterScrollWrap.clientWidth) > 1;
+                if (filterNavPrev) filterNavPrev.classList.toggle('is-visible', hasOverflow);
+                if (filterNavNext) filterNavNext.classList.toggle('is-visible', hasOverflow);
+            }
+
+            function scrollFilterBy(direction) {
+                if (!filterScrollWrap) return;
+                var step = Math.max(filterScrollWrap.clientWidth * 0.8, 120);
+                filterScrollWrap.scrollBy({ left: direction * step, behavior: 'smooth' });
+            }
+
+            if (filterNavPrev) {
+                filterNavPrev.addEventListener('click', function() { scrollFilterBy(-1); });
+            }
+            if (filterNavNext) {
+                filterNavNext.addEventListener('click', function() { scrollFilterBy(1); });
+            }
+
+            if (filterScrollWrap) {
+                filterScrollWrap.addEventListener('scroll', updateFilterNav, { passive: true });
+
+                // 桌面端：鼠标滚轮在筛选栏上时转为横向滚动；
+                // 已滚到两端时不再拦截，让页面正常纵向滚动，避免影响阅读
+                filterScrollWrap.addEventListener('wheel', function(e) {
+                    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+
+                    var maxScroll = filterScrollWrap.scrollWidth - filterScrollWrap.clientWidth;
+                    if (maxScroll <= 1) return;
+
+                    var atStart = filterScrollWrap.scrollLeft <= 0;
+                    var atEnd = filterScrollWrap.scrollLeft >= maxScroll - 1;
+                    if ((e.deltaY < 0 && atStart) || (e.deltaY > 0 && atEnd)) return;
+
+                    e.preventDefault();
+                    filterScrollWrap.scrollLeft = Math.max(0, Math.min(maxScroll, filterScrollWrap.scrollLeft + e.deltaY));
+                }, { passive: false });
+            }
+
+            window.addEventListener('resize', updateFilterNav);
+            window.addEventListener('load', updateFilterNav);
+            setTimeout(updateFilterNav, 300);
 
             // 构建 id -> DOM 映射
             var itemsById = {};

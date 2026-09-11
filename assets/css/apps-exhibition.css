@@ -158,17 +158,66 @@
     padding-right: 4px;
 }
 
+/* 左右滚动箭头：默认隐藏，内容溢出时由 JS 加 .is-visible 显示 */
+#apps-exhibition-root .filter-nav {
+    display: none;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #e2e6ea;
+    border-radius: 50%;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+#apps-exhibition-root .filter-nav.is-visible {
+    display: inline-flex;
+}
+
+#apps-exhibition-root .filter-nav:hover {
+    background: #eef4ff;
+    color: #007bff;
+    border-color: #b8d4f5;
+}
+
+#apps-exhibition-root .filter-nav svg {
+    display: block;
+}
+
+/* 单行横向滚动（桌面与移动端统一），分类再多也不换行 */
 #apps-exhibition-root .filter-scroll {
     flex: 1;
     min-width: 0;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    overscroll-behavior-x: contain;
+    /* 左右缘渐隐：提示还有更多内容可滚动。淡出宽度与内层左右 padding 一致，
+       渐隐区恰好落在空白 padding 上，不会裁到首尾胶囊 */
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+#apps-exhibition-root .filter-scroll::-webkit-scrollbar {
+    display: none;
 }
 
 #apps-exhibition-root .filter-scroll-inner {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
+    min-width: max-content;
+    padding: 0 12px;
 }
 
 #apps-exhibition-root .apps-exhibition-filter .filter-btn {
@@ -551,35 +600,10 @@
         padding-right: 2px;
     }
 
-    #apps-exhibition-root .filter-scroll {
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-        min-width: 0;
-        /* 用 mask 让滚动内容在右缘自然渐隐，替代原白色渐变遮罩：
-           原遮罩叠在胶囊上层，长文字分类滚动/点击到边缘时，
-           激活胶囊右端被白色渐变漂白，看起来像"高亮缺一块"。
-           mask 是裁切而非遮挡，胶囊渐隐为透明，不存在覆盖层级。 */
-        -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
-        mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
-        -webkit-mask-repeat: no-repeat;
-        mask-repeat: no-repeat;
-    }
-
-    #apps-exhibition-root .filter-scroll::-webkit-scrollbar {
+    /* 移动端直接手势横向滚动，隐藏左右箭头（含 JS 标记的可见状态） */
+    #apps-exhibition-root .filter-nav,
+    #apps-exhibition-root .filter-nav.is-visible {
         display: none;
-    }
-
-    #apps-exhibition-root .filter-scroll-inner {
-        display: flex;
-        flex-wrap: nowrap;
-        gap: 8px;
-        /* 末端缓冲与 mask 淡出宽度一致：保证任何浏览器下
-           （含 Safari 合成滚动层吞末端 padding 的怪癖），
-           贴右缘的胶囊完整处于淡出区，不会与卡片边界硬碰 */
-        padding-right: 24px;
-        min-width: max-content;
     }
 
     #apps-exhibition-root .apps-exhibition-filter .filter-btn {

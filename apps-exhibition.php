@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.0.15
+ * Version: 2.1.0
  * Requires at least: 5.6
  * Requires PHP: 7.4
  * Author: 木木
@@ -27,7 +27,7 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.0.15';
+    const VERSION = '2.1.0';
 
     /**
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
@@ -424,13 +424,20 @@ final class Apps_Exhibition {
         }
         check_admin_referer( 'apps_exhibition_filter_categories' );
 
-        $input = isset( $_POST['filter_categories'] ) ? wp_unslash( trim( $_POST['filter_categories'] ) ) : '';
-        $cats = array_filter( array_unique( array_map( 'trim', explode( "\n", $input ) ) ), function ( $v ) {
-            return $v !== '';
-        } );
-        $cats = array_values( $cats );
+        $input = isset( $_POST['filter_categories'] ) ? wp_unslash( $_POST['filter_categories'] ) : '';
+        $cats  = $this->sanitize_category_list( $input );
+
+        $renames_raw = isset( $_POST['filter_category_renames'] ) ? wp_unslash( $_POST['filter_category_renames'] ) : '';
+        $renames     = $this->sanitize_rename_map( $renames_raw, $cats );
 
         update_option( 'apps_exhibition_filter_categories', $cats );
+
+        // 改名自动迁移：把应用表中的旧分类名替换为新名，并同步分类排序的 key
+        if ( ! empty( $renames ) ) {
+            $this->migrate_category_names( $renames, 'app_filter_category' );
+            $this->migrate_category_order_keys( $renames );
+        }
+
         self::clear_frontend_cache();
 
         wp_safe_redirect( add_query_arg( 'message', 'cat_saved', admin_url( 'admin.php?page=apps-exhibition&tab=settings' ) ) );
@@ -443,17 +450,181 @@ final class Apps_Exhibition {
         }
         check_admin_referer( 'apps_exhibition_platform_categories' );
 
-        $input = isset( $_POST['platform_categories'] ) ? wp_unslash( trim( $_POST['platform_categories'] ) ) : '';
-        $platforms = array_filter( array_unique( array_map( 'trim', explode( "\n", $input ) ) ), function ( $v ) {
-            return $v !== '';
-        } );
-        $platforms = array_values( $platforms );
+        $input     = isset( $_POST['platform_categories'] ) ? wp_unslash( $_POST['platform_categories'] ) : '';
+        $platforms = $this->sanitize_category_list( $input );
+
+        $renames_raw = isset( $_POST['platform_category_renames'] ) ? wp_unslash( $_POST['platform_category_renames'] ) : '';
+        $renames     = $this->sanitize_rename_map( $renames_raw, $platforms );
 
         update_option( 'apps_exhibition_platform_categories', $platforms );
+
+        // 改名自动迁移：把应用表中的旧平台名替换为新名
+        if ( ! empty( $renames ) ) {
+            $this->migrate_category_names( $renames, 'app_platforms' );
+        }
+
         self::clear_frontend_cache();
 
         wp_safe_redirect( add_query_arg( 'message', 'platform_saved', admin_url( 'admin.php?page=apps-exhibition&tab=settings' ) ) );
         exit;
+    }
+
+    /**
+     * 清洗分类/平台列表：兼容换行与逗号两种分隔方式，去空白、去空项、去重。
+     *
+     * 分类名以逗号拼接存储于应用表，名称本身不允许含逗号，因此这里把逗号一并
+     * 当作分隔符；同时兼容旧版「每行一个」的提交格式。
+     *
+     * @param string $input 原始输入（换行/逗号分隔）。
+     * @return string[] 清洗后的名称列表。
+     */
+    private function sanitize_category_list( $input ) {
+        $parts = preg_split( '/[\r\n,，]+/', (string) $input );
+        if ( ! is_array( $parts ) ) {
+            return [];
+        }
+
+        $items = array_filter( array_map( function ( $part ) {
+            return sanitize_text_field( trim( $part ) );
+        }, $parts ), function ( $v ) {
+            return $v !== '';
+        } );
+
+        // 忽略大小写去重：与前端「同名不可添加」策略保持一致
+        $unique = [];
+        $seen   = [];
+        foreach ( $items as $item ) {
+            $key = function_exists( 'mb_strtolower' ) ? mb_strtolower( $item, 'UTF-8' ) : strtolower( $item );
+            if ( isset( $seen[ $key ] ) ) {
+                continue;
+            }
+            $seen[ $key ] = true;
+            $unique[]     = $item;
+        }
+
+        return array_values( $unique );
+    }
+
+    /**
+     * 清洗「老名 → 新名」改名映射。
+     *
+     * 仅接受合法映射：新旧名均非空且不同；新名必须存在于保存后的列表
+     * （防止产生悬空名称）；旧名不得仍留在列表中（否则应视为新增而非改名）。
+     *
+     * @param string   $raw_json    前端提交的 JSON 映射。
+     * @param string[] $allowed_new 保存后的有效名称列表。
+     * @return array<string,string> 清洗后的映射。
+     */
+    private function sanitize_rename_map( $raw_json, array $allowed_new ) {
+        $raw = json_decode( (string) $raw_json, true );
+        if ( ! is_array( $raw ) ) {
+            return [];
+        }
+
+        $map = [];
+        foreach ( $raw as $old => $new ) {
+            if ( ! is_string( $old ) && ! is_int( $old ) ) {
+                continue;
+            }
+
+            $old = sanitize_text_field( (string) $old );
+            $new = sanitize_text_field( (string) $new );
+
+            if ( '' === $old || '' === $new || $old === $new ) {
+                continue;
+            }
+            if ( ! in_array( $new, $allowed_new, true ) ) {
+                continue;
+            }
+            if ( in_array( $old, $allowed_new, true ) ) {
+                continue;
+            }
+
+            $map[ $old ] = $new;
+        }
+
+        return $map;
+    }
+
+    /**
+     * 按改名映射迁移应用表中以逗号拼接的分类字段。
+     *
+     * 逐条解析 token 后映射，而非字符串直接替换，可正确处理「老名是新名子串」等情况。
+     *
+     * @param array<string,string> $map    老名 → 新名。
+     * @param string               $column 目标字段（仅允许 app_filter_category / app_platforms）。
+     * @return int 受影响的应用行数。
+     */
+    private function migrate_category_names( array $map, $column ) {
+        if ( empty( $map ) || ! in_array( $column, [ 'app_filter_category', 'app_platforms' ], true ) ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'apps_exhibition';
+
+        $rows = $wpdb->get_results( "SELECT id, {$column} AS val FROM {$table}", ARRAY_A );
+        if ( empty( $rows ) ) {
+            return 0;
+        }
+
+        $changed = 0;
+        foreach ( $rows as $row ) {
+            $tokens = array_filter( array_map( 'trim', explode( ',', (string) $row['val'] ) ), function ( $token ) {
+                return $token !== '';
+            } );
+
+            $touched    = false;
+            $new_tokens = [];
+            foreach ( $tokens as $token ) {
+                if ( isset( $map[ $token ] ) && $map[ $token ] !== $token ) {
+                    $new_tokens[] = $map[ $token ];
+                    $touched      = true;
+                } else {
+                    $new_tokens[] = $token;
+                }
+            }
+
+            $new_tokens = array_values( array_unique( $new_tokens ) );
+            $new_val    = implode( ',', $new_tokens );
+
+            if ( $touched && $new_val !== (string) $row['val'] ) {
+                $wpdb->update( $table, [ $column => $new_val ], [ 'id' => (int) $row['id'] ], [ '%s' ], [ '%d' ] );
+                $changed++;
+            }
+        }
+
+        return $changed;
+    }
+
+    /**
+     * 同步「分类内应用排序」option 的 key，让分类改名后自定义排序不丢失。
+     *
+     * @param array<string,string> $map 老名 → 新名。
+     */
+    private function migrate_category_order_keys( array $map ) {
+        if ( empty( $map ) ) {
+            return;
+        }
+
+        $orders = get_option( 'apps_exhibition_category_order', [] );
+        if ( ! is_array( $orders ) || empty( $orders ) ) {
+            return;
+        }
+
+        $new_orders = [];
+        $dirty      = false;
+        foreach ( $orders as $cat => $list ) {
+            if ( isset( $map[ $cat ] ) ) {
+                $cat   = $map[ $cat ];
+                $dirty = true;
+            }
+            $new_orders[ $cat ] = $list;
+        }
+
+        if ( $dirty ) {
+            update_option( 'apps_exhibition_category_order', $new_orders );
+        }
     }
 
     public function add_admin_menu() {
@@ -608,6 +779,19 @@ final class Apps_Exhibition {
             'moveAllOption'      => __( '全部（覆盖现有分类）', 'apps-exhibition' ),
             'moveSelectTarget'   => __( '请选择目标分类。', 'apps-exhibition' ),
             'moveConfirm'        => __( '确认移动所选应用的分类？此操作将立即生效。', 'apps-exhibition' ),
+            // 分类设置 - 标签输入
+            'tagTooLong'              => sprintf( __( '单项名称不能超过 %d 个字符。', 'apps-exhibition' ), 30 ),
+            'tagMax'                  => sprintf( __( '最多只能添加 %d 项。', 'apps-exhibition' ), 50 ),
+            'tagDuplicate'            => __( '「%s」已存在，不可添加。', 'apps-exhibition' ),
+            'tagDuplicateRename'      => __( '「%s」已存在，无法改为该名称。', 'apps-exhibition' ),
+            'tagEmpty'                => __( '请至少保留一项后再保存。', 'apps-exhibition' ),
+            'confirmRemoveItemTitle'  => __( '确认删除该项？', 'apps-exhibition' ),
+            'confirmRemoveItemLead'   => __( '即将删除：', 'apps-exhibition' ),
+            'confirmRemoveItemItem1'  => __( '该项会立即从当前列表中移除；', 'apps-exhibition' ),
+            'confirmRemoveItemItem2'  => __( '点击「保存」后更改才会真正生效；', 'apps-exhibition' ),
+            'confirmRemoveItemItem3'  => __( '未点击「保存」前关闭页面，将保留原有分类。', 'apps-exhibition' ),
+            'confirmRemoveItemNotice' => __( '温馨提示：删除将在点击「保存」后生效；如需保留，请点击「取消」。', 'apps-exhibition' ),
+            'confirmRemoveItemBtn'    => __( '确认删除', 'apps-exhibition' ),
         ] );
     }
 

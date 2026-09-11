@@ -58,6 +58,28 @@ settings_errors( 'apps_exhibition_messages' );
         <a href="?page=apps-exhibition&tab=home_posters" class="nav-tab <?php echo $current_tab === 'home_posters' ? 'nav-tab-active' : ''; ?>"><?php esc_html_e( '首页海报', 'apps-exhibition' ); ?></a>
     </h2>
 
+    <!-- 通用二次确认弹窗（删除应用 / 批量删除 / 删除下载链接 / 删除分类标签） -->
+    <div class="ae-modal-overlay" id="ae-confirm-overlay" style="display:none;">
+        <div class="ae-modal ae-confirm-modal">
+            <div class="ae-modal-header">
+                <h2 id="ae-confirm-title"><?php esc_html_e( '请确认操作', 'apps-exhibition' ); ?></h2>
+                <button type="button" class="ae-modal-close" id="ae-confirm-close">&times;</button>
+            </div>
+            <div class="ae-modal-body">
+                <p class="ae-confirm-lead" id="ae-confirm-lead" style="display:none;"></p>
+                <ul class="ae-confirm-list" id="ae-confirm-list" style="display:none;"></ul>
+                <p class="ae-confirm-notice" id="ae-confirm-notice" style="display:none;">
+                    <span class="dashicons dashicons-warning"></span>
+                    <span id="ae-confirm-notice-text"></span>
+                </p>
+                <div class="ae-form-actions">
+                    <button type="button" class="button ae-btn-danger" id="ae-confirm-ok"><?php esc_html_e( '确认', 'apps-exhibition' ); ?></button>
+                    <button type="button" class="button" id="ae-confirm-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <?php if ( $current_tab === 'apps' ) : ?>
 
     <?php
@@ -314,28 +336,6 @@ settings_errors( 'apps_exhibition_messages' );
         </div>
     </div>
 
-    <!-- 通用二次确认弹窗（删除应用 / 批量删除 / 删除下载链接） -->
-    <div class="ae-modal-overlay" id="ae-confirm-overlay" style="display:none;">
-        <div class="ae-modal ae-confirm-modal">
-            <div class="ae-modal-header">
-                <h2 id="ae-confirm-title"><?php esc_html_e( '请确认操作', 'apps-exhibition' ); ?></h2>
-                <button type="button" class="ae-modal-close" id="ae-confirm-close">&times;</button>
-            </div>
-            <div class="ae-modal-body">
-                <p class="ae-confirm-lead" id="ae-confirm-lead" style="display:none;"></p>
-                <ul class="ae-confirm-list" id="ae-confirm-list" style="display:none;"></ul>
-                <p class="ae-confirm-notice" id="ae-confirm-notice" style="display:none;">
-                    <span class="dashicons dashicons-warning"></span>
-                    <span id="ae-confirm-notice-text"></span>
-                </p>
-                <div class="ae-form-actions">
-                    <button type="button" class="button ae-btn-danger" id="ae-confirm-ok"><?php esc_html_e( '确认', 'apps-exhibition' ); ?></button>
-                    <button type="button" class="button" id="ae-confirm-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
-                </div>
-            </div>
-        </div>
-    </div>
-
 <?php elseif ( $current_tab === 'settings' ) : ?>
 
     <div class="ae-settings-wrap">
@@ -344,11 +344,31 @@ settings_errors( 'apps_exhibition_messages' );
                 <span class="dashicons dashicons-tag"></span>
                 <h3><?php esc_html_e( '筛选分类', 'apps-exhibition' ); ?></h3>
             </div>
-            <p class="ae-settings-desc"><?php esc_html_e( '管理前端页面的筛选分类标签，每行填写一个分类名称。', 'apps-exhibition' ); ?></p>
+            <p class="ae-settings-desc"><?php esc_html_e( '输入名称后点「添加」新增；按住左侧手柄拖拽排序，点铅笔改名，点垃圾桶删除。分类顺序会同步到前端筛选栏，所有更改需点击「保存」才会生效。', 'apps-exhibition' ); ?></p>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'apps_exhibition_filter_categories' ); ?>
                 <input type="hidden" name="action" value="apps_exhibition_save_filter_categories">
-                <textarea name="filter_categories" rows="8" class="ae-settings-textarea"><?php echo esc_textarea( implode( "\n", $filter_categories ) ); ?></textarea>
+                <div class="ae-cat-editor" data-cat-editor>
+                    <div class="ae-cat-add">
+                        <input type="text" class="ae-cat-add-input" placeholder="<?php esc_attr_e( '输入分类名称后回车或点「添加」', 'apps-exhibition' ); ?>" />
+                        <button type="button" class="button ae-cat-add-btn"><?php esc_html_e( '添加', 'apps-exhibition' ); ?></button>
+                    </div>
+                    <ul class="ae-cat-list<?php echo empty( $filter_categories ) ? '' : ' has-items'; ?>">
+                        <li class="ae-cat-empty"><?php esc_html_e( '暂无分类，请在上方输入后点「添加」', 'apps-exhibition' ); ?></li>
+                        <?php foreach ( $filter_categories as $category ) : ?>
+                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $category ); ?>">
+                                <span class="ae-cat-drag dashicons dashicons-menu" title="<?php esc_attr_e( '拖拽排序', 'apps-exhibition' ); ?>"></span>
+                                <span class="ae-cat-name"><?php echo esc_html( $category ); ?></span>
+                                <span class="ae-cat-actions">
+                                    <button type="button" class="ae-cat-edit" title="<?php esc_attr_e( '修改', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-edit"></span></button>
+                                    <button type="button" class="ae-cat-remove" title="<?php esc_attr_e( '删除', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-trash"></span></button>
+                                </span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <input type="hidden" name="filter_categories" class="ae-cat-value" value="<?php echo esc_attr( implode( "\n", $filter_categories ) ); ?>" />
+                    <input type="hidden" name="filter_category_renames" class="ae-cat-renames" value="" />
+                </div>
                 <div class="ae-settings-card-footer">
                     <input type="submit" class="button button-primary" value="<?php esc_attr_e( '保存筛选分类', 'apps-exhibition' ); ?>">
                 </div>
@@ -360,11 +380,31 @@ settings_errors( 'apps_exhibition_messages' );
                 <span class="dashicons dashicons-smartphone"></span>
                 <h3><?php esc_html_e( '应用平台', 'apps-exhibition' ); ?></h3>
             </div>
-            <p class="ae-settings-desc"><?php esc_html_e( '管理可选的应用平台标签，每行填写一个平台名称。', 'apps-exhibition' ); ?></p>
+            <p class="ae-settings-desc"><?php esc_html_e( '输入名称后点「添加」新增；按住左侧手柄拖拽排序，点铅笔改名，点垃圾桶删除。改名后应用会自动迁移到新名称，所有更改需点击「保存」才会生效。', 'apps-exhibition' ); ?></p>
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'apps_exhibition_platform_categories' ); ?>
                 <input type="hidden" name="action" value="apps_exhibition_save_platform_categories">
-                <textarea name="platform_categories" rows="8" class="ae-settings-textarea"><?php echo esc_textarea( implode( "\n", $platform_options ) ); ?></textarea>
+                <div class="ae-cat-editor" data-cat-editor>
+                    <div class="ae-cat-add">
+                        <input type="text" class="ae-cat-add-input" placeholder="<?php esc_attr_e( '输入平台名称后回车或点「添加」', 'apps-exhibition' ); ?>" />
+                        <button type="button" class="button ae-cat-add-btn"><?php esc_html_e( '添加', 'apps-exhibition' ); ?></button>
+                    </div>
+                    <ul class="ae-cat-list<?php echo empty( $platform_options ) ? '' : ' has-items'; ?>">
+                        <li class="ae-cat-empty"><?php esc_html_e( '暂无平台，请在上方输入后点「添加」', 'apps-exhibition' ); ?></li>
+                        <?php foreach ( $platform_options as $platform ) : ?>
+                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $platform ); ?>">
+                                <span class="ae-cat-drag dashicons dashicons-menu" title="<?php esc_attr_e( '拖拽排序', 'apps-exhibition' ); ?>"></span>
+                                <span class="ae-cat-name"><?php echo esc_html( $platform ); ?></span>
+                                <span class="ae-cat-actions">
+                                    <button type="button" class="ae-cat-edit" title="<?php esc_attr_e( '修改', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-edit"></span></button>
+                                    <button type="button" class="ae-cat-remove" title="<?php esc_attr_e( '删除', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-trash"></span></button>
+                                </span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <input type="hidden" name="platform_categories" class="ae-cat-value" value="<?php echo esc_attr( implode( "\n", $platform_options ) ); ?>" />
+                    <input type="hidden" name="platform_category_renames" class="ae-cat-renames" value="" />
+                </div>
                 <div class="ae-settings-card-footer">
                     <input type="submit" class="button button-primary" value="<?php esc_attr_e( '保存平台分类', 'apps-exhibition' ); ?>">
                 </div>
@@ -404,8 +444,8 @@ settings_errors( 'apps_exhibition_messages' );
                 <div style="flex: 0 0 auto; text-align: center;">
                     <div class="poster-media-row">
                         <div class="poster-drag-handle" title="<?php esc_attr_e( '拖拽调整顺序', 'apps-exhibition' ); ?>">
+                            <span class="poster-drag-grip" aria-hidden="true"></span>
                             <span class="poster-order"><?php echo esc_html( $poster_index ); ?></span>
-                            <span class="poster-drag-grip"></span>
                         </div>
                         <img class="poster-preview-img" src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:200px; max-height:150px; border-radius: 6px;">
                     </div>

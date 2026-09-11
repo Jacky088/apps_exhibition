@@ -51,7 +51,21 @@ function apps_exhibition_shortcode() {
             }
         }
     }
-    sort( $categories_in_use );
+    // 按「分类设置」中保存的顺序排列前端筛选栏（后台拖拽顺序即前端展示顺序）
+    $configured_categories = $plugin->get_filter_categories();
+    $ordered_categories    = [];
+    foreach ( $configured_categories as $configured_cat ) {
+        if ( in_array( $configured_cat, $categories_in_use, true ) ) {
+            $ordered_categories[] = $configured_cat;
+        }
+    }
+    // 配置中未包含的历史分类（如重命名后遗留的旧名）追加到末尾，避免前端漏显
+    foreach ( $categories_in_use as $cat ) {
+        if ( ! in_array( $cat, $ordered_categories, true ) ) {
+            $ordered_categories[] = $cat;
+        }
+    }
+    $categories_in_use = $ordered_categories;
 
     // 默认选中"全部"分类
     if ( $filter_category === '' ) {
@@ -157,6 +171,9 @@ function apps_exhibition_shortcode() {
         <div class="apps-exhibition-filter-group">
             <div class="apps-exhibition-filter">
                 <span class="filter-label"><?php esc_html_e( '筛选分类:', 'apps-exhibition' ); ?></span>
+                <button type="button" class="filter-nav filter-nav-prev" aria-label="<?php esc_attr_e( '向左滚动', 'apps-exhibition' ); ?>">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
                 <div class="filter-scroll">
                     <div class="filter-scroll-inner">
                         <!-- "全部"分类按钮 -->
@@ -174,6 +191,9 @@ function apps_exhibition_shortcode() {
                         <?php endforeach; ?>
                     </div>
                 </div>
+                <button type="button" class="filter-nav filter-nav-next" aria-label="<?php esc_attr_e( '向右滚动', 'apps-exhibition' ); ?>">
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
             </div>
         </div>
 

@@ -426,22 +426,168 @@
     padding: 12px 20px 20px;
 }
 
-.ae-settings-textarea {
-    width: 100%;
-    font-size: 13px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    border: 1px solid #dcdcde;
-    border-radius: 6px;
-    padding: 10px 12px;
-    line-height: 1.6;
-    resize: vertical;
-    transition: border-color 0.2s;
+/* 分类/平台列表编辑：顶部输入 + 添加按钮，下方竖排列表 */
+.ae-cat-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
-.ae-settings-textarea:focus {
+.ae-cat-add {
+    display: flex;
+    gap: 8px;
+}
+
+.ae-cat-add-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 4px 10px;
+    border: 1px solid #8c8f94;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.6;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ae-cat-add-input:focus {
     border-color: #007cba;
     box-shadow: 0 0 0 1px #007cba;
     outline: none;
+}
+
+.ae-cat-add-btn {
+    flex: 0 0 auto;
+}
+
+.ae-cat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid #e2e4e7;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.ae-cat-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0f0f1;
+    background: #fff;
+}
+
+.ae-cat-item:last-child {
+    border-bottom: none;
+}
+
+.ae-cat-item.ui-sortable-helper {
+    background: #f6f9ff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.ae-cat-drag {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    font-size: 18px;
+    color: #c3c4c7;
+    cursor: grab;
+    transition: color 0.15s;
+}
+
+.ae-cat-item:hover .ae-cat-drag {
+    color: #007cba;
+}
+
+.ae-cat-drag:active {
+    cursor: grabbing;
+}
+
+.ae-cat-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    color: #1d2327;
+    word-break: break-all;
+}
+
+.ae-cat-name.is-editing {
+    display: none;
+}
+
+.ae-cat-edit-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 2px 8px;
+    border: 1px solid #007cba;
+    border-radius: 4px;
+    font-size: 13px;
+    line-height: 1.6;
+    outline: none;
+}
+
+.ae-cat-actions {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.ae-cat-edit,
+.ae-cat-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #787c82;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.ae-cat-edit .dashicons,
+.ae-cat-remove .dashicons {
+    width: 16px;
+    height: 16px;
+    font-size: 16px;
+    line-height: 16px;
+}
+
+.ae-cat-edit:hover {
+    background: #eef1fb;
+    color: #007cba;
+}
+
+.ae-cat-remove:hover {
+    background: #fdeaea;
+    color: #d63638;
+}
+
+/* 空状态 */
+.ae-cat-empty {
+    padding: 14px 12px;
+    color: #8c8f94;
+    font-size: 13px;
+    text-align: center;
+}
+
+.ae-cat-list.has-items .ae-cat-empty {
+    display: none;
+}
+
+/* 拖拽占位符 */
+.ae-cat-placeholder {
+    height: 38px;
+    margin: 0;
+    border: 1px dashed #007cba;
+    background: #f0f7ff;
+    list-style: none;
 }
 
 .ae-settings-card-footer {
@@ -625,58 +771,81 @@
     color: #007cba;
 }
 
-/* 海报项：竖向拖拽手柄与预览图并排，手柄高度与海报一致 */
+/* 海报项：横向拖拽手柄与预览图并排，手柄高度与海报缩略图一致 */
 .poster-media-row {
     display: flex;
     align-items: stretch;
     justify-content: center;
-    gap: 6px;
+    gap: 10px;
 }
 
 .poster-media-row .poster-preview-img {
     align-self: center;
 }
 
-/* 双列圆点抓取条（⋮⋮）：无背景无边框，仅显示纹路 */
+/* 拖拽手柄：浅蓝圆角「抓取按钮」+ 序号药丸，序号位于手柄之后 */
 .poster-drag-handle {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     flex: 0 0 auto;
-    width: 14px;
     padding: 0;
     background: none;
     border: none;
-    color: #b4b9be;
     cursor: grab;
     user-select: none;
-}
-
-.poster-drag-handle:hover {
-    color: #007cba;
 }
 
 .poster-drag-handle:active {
     cursor: grabbing;
 }
 
-.poster-drag-handle .poster-order {
-    font-size: 11px;
-    font-weight: 600;
-    color: #007cba;
-    line-height: 1;
+/* 抓取按钮：浅蓝底圆角块，纵向拉伸至与海报缩略图等高 */
+.poster-drag-handle .poster-drag-grip {
+    align-self: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    min-height: 36px;
+    border-radius: 8px;
+    background: #eef1fb;
+    color: #5a6acf;
+    transition: background 0.2s, color 0.2s;
 }
 
-/* 双列圆点纵向重复填充剩余高度，使手柄始终与海报等高 */
-.poster-drag-handle .poster-drag-grip {
-    flex: 1 1 auto;
-    width: 12px;
-    min-height: 0;
-    background-image: radial-gradient(circle, currentColor 1.5px, transparent 1.6px);
-    background-size: 6px 9px;
-    background-repeat: repeat;
-    opacity: 0.6;
+.poster-drag-handle:hover .poster-drag-grip {
+    background: #e2e7fa;
+    color: #4a5bd0;
+}
+
+/* 三条水平抓取线（≡） */
+.poster-drag-handle .poster-drag-grip::before {
+    content: "";
+    width: 16px;
+    height: 12px;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        currentColor 0,
+        currentColor 2px,
+        transparent 2px,
+        transparent 5px
+    );
+    border-radius: 1px;
+}
+
+/* 序号药丸：位于抓取按钮之后 */
+.poster-drag-handle .poster-order {
+    flex: 0 0 auto;
+    min-width: 26px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #f0f0f1;
+    color: #50575e;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
 }
 
 /* 拖拽占位符 */

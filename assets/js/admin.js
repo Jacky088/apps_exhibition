@@ -554,8 +554,8 @@ jQuery(document).ready(function($) {
         // 拖拽手柄（含顺序序号）：按住手柄可调整海报顺序
         function posterHandleHtml(order) {
             return '<div class="poster-drag-handle" title="' + escAttr(l10n.dragToSort || '拖拽调整顺序') + '">' +
+                '<span class="poster-drag-grip" aria-hidden="true"></span>' +
                 '<span class="poster-order">' + order + '</span>' +
-                '<span class="poster-drag-grip"></span>' +
                 '</div>';
         }
 
@@ -751,5 +751,208 @@ jQuery(document).ready(function($) {
 
         initPosterSortable();
         renderHomePosters(getPostersArray());
+    })();
+
+    // =============================================
+    // 分类/平台列表编辑（分类设置）
+    // 顶部输入 + 添加按钮，下方竖排列表：左侧拖拽手柄，右侧编辑 / 删除
+    // 仅修改当前页面状态与隐藏域，所有更改必须点击「保存」后才生效
+    // =============================================
+    (function() {
+        var $editors = $('.ae-cat-editor');
+        if (!$editors.length) return;
+
+        var MAX_ITEMS = 50;
+        var MAX_LEN = 30;
+
+        // 清洗名称：去掉换行与逗号（分类名以逗号拼接存储，含逗号会破坏数据）
+        function cleanName(raw) {
+            return String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').replace(/[,，]/g, '').trim();
+        }
+
+        function getValues($editor) {
+            var values = [];
+            $editor.find('.ae-cat-name').each(function() { values.push($(this).text()); });
+            return values;
+        }
+
+        // 把当前列表顺序写回隐藏域，并切换空状态（不提交则不生效）
+        function sync($editor) {
+            var values = getValues($editor);
+            $editor.find('.ae-cat-value').val(values.join('\n'));
+            $editor.find('.ae-cat-list').toggleClass('has-items', values.length > 0);
+        }
+
+        function exists($editor, name, $except) {
+            var found = false;
+            $editor.find('.ae-cat-name').each(function() {
+                if ($except && $except.is(this)) return;
+                if ($(this).text().toLowerCase() === name.toLowerCase()) { found = true; return false; }
+            });
+            return found;
+        }
+
+        function buildItem(name) {
+            return $('<li class="ae-cat-item"></li>')
+                .attr('data-origin', name)
+                .append('<span class="ae-cat-drag dashicons dashicons-menu" title="' + escAttr(l10n.dragToSort || '拖拽排序') + '"></span>')
+                .append($('<span class="ae-cat-name"></span>').text(name))
+                .append('<span class="ae-cat-actions">' +
+                    '<button type="button" class="ae-cat-edit" title="' + escAttr(l10n.editBtn || '修改') + '"><span class="dashicons dashicons-edit"></span></button>' +
+                    '<button type="button" class="ae-cat-remove" title="' + escAttr(l10n.deleteBtn || '删除') + '"><span class="dashicons dashicons-trash"></span></button>' +
+                    '</span>');
+        }
+
+        // 返回值：'added' 成功 / 'duplicate' 同名 / 'invalid' 超长或超量 / 'empty' 空输入
+        function addItem($editor, rawName) {
+            var name = cleanName(rawName);
+            if (!name) return 'empty';
+
+            if (name.length > MAX_LEN) {
+                showToast((l10n.tagTooLong || '单项名称不能超过 %d 个字符。').replace('%d', MAX_LEN), true);
+                return 'invalid';
+            }
+            if (exists($editor, name)) {
+                showToast((l10n.tagDuplicate || '「%s」已存在，不可添加。').replace('%s', name), true);
+                return 'duplicate';
+            }
+            if (getValues($editor).length >= MAX_ITEMS) {
+                showToast((l10n.tagMax || '最多只能添加 %d 项。').replace('%d', MAX_ITEMS), true);
+                return 'invalid';
+            }
+
+            $editor.find('.ae-cat-list').append(buildItem(name));
+            sync($editor);
+            return 'added';
+        }
+
+        // 拖拽排序：按住左侧手柄拖动，顺序写入隐藏域，保存后同步到前端筛选栏
+        $editors.each(function() {
+            var $editor = $(this);
+            $editor.find('.ae-cat-list').sortable({
+                handle: '.ae-cat-drag',
+                items: '> .ae-cat-item',
+                axis: 'y',
+                placeholder: 'ae-cat-placeholder',
+                forcePlaceholderSize: true,
+                tolerance: 'pointer',
+                update: function() { sync($editor); }
+            });
+        });
+
+        // 顶部添加：点「添加」按钮
+        $editors.on('click', '.ae-cat-add-btn', function() {
+            var $editor = $(this).closest('.ae-cat-editor');
+            var $input = $editor.find('.ae-cat-add-input');
+            if (addItem($editor, $input.val()) !== 'invalid') $input.val('');
+            $input.focus();
+        });
+
+        // 顶部添加：输入框回车
+        $editors.on('keydown', '.ae-cat-add-input', function(e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            var $editor = $(this).closest('.ae-cat-editor');
+            if (addItem($editor, $(this).val()) !== 'invalid') $(this).val('');
+        });
+
+        // 删除：复用通用二次确认弹窗，确认后仅修改页面状态
+        $editors.on('click', '.ae-cat-remove', function(e) {
+            e.preventDefault();
+            var $item = $(this).closest('.ae-cat-item');
+            var $editor = $item.closest('.ae-cat-editor');
+            var name = $item.find('.ae-cat-name').text();
+
+            openConfirm({
+                title: l10n.confirmRemoveItemTitle || '确认删除该项？',
+                lead: (l10n.confirmRemoveItemLead || '即将删除：') + name,
+                items: [
+                    l10n.confirmRemoveItemItem1 || '该项会立即从当前列表中移除；',
+                    l10n.confirmRemoveItemItem2 || '点击「保存」后更改才会真正生效；',
+                    l10n.confirmRemoveItemItem3 || '未点击「保存」前关闭页面，将保留原有分类。'
+                ],
+                notice: l10n.confirmRemoveItemNotice || '温馨提示：删除将在点击「保存」后生效；如需保留，请点击「取消」。',
+                okText: l10n.confirmRemoveItemBtn || '确认删除',
+                onConfirm: function() {
+                    $item.remove();
+                    sync($editor);
+                }
+            });
+        });
+
+        // 行内就地改名：点铅笔按钮进入编辑（Enter 确认 / Esc 取消，仅改页面状态）
+        function startEdit($item) {
+            if (!$item.length || $item.hasClass('is-editing')) return;
+
+            var $editor = $item.closest('.ae-cat-editor');
+            var $name = $item.find('.ae-cat-name');
+            var oldName = $name.text();
+            var $input = $('<input type="text" class="ae-cat-edit-input" />').val(oldName);
+
+            $item.addClass('is-editing');
+            $name.addClass('is-editing').after($input);
+            $input.trigger('focus').trigger('select');
+
+            var done = false;
+            function finish(commit) {
+                if (done) return;
+                done = true;
+
+                if (commit) {
+                    var newName = cleanName($input.val());
+                    if (newName && newName !== oldName) {
+                        if (newName.length > MAX_LEN) {
+                            showToast((l10n.tagTooLong || '单项名称不能超过 %d 个字符。').replace('%d', MAX_LEN), true);
+                        } else if (exists($editor, newName, $name)) {
+                            showToast((l10n.tagDuplicateRename || '「%s」已存在，无法改为该名称。').replace('%s', newName), true);
+                        } else {
+                            $name.text(newName);
+                            sync($editor);
+                        }
+                    }
+                }
+
+                $input.remove();
+                $name.removeClass('is-editing');
+                $item.removeClass('is-editing');
+            }
+
+            $input.on('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+                else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+            });
+            $input.on('blur', function() { finish(true); });
+        }
+
+        $editors.on('click', '.ae-cat-edit', function(e) {
+            e.preventDefault();
+            startEdit($(this).closest('.ae-cat-item'));
+        });
+
+        // 提交前：校验至少保留一项，并收集「老名→新名」映射供后端自动迁移
+        $editors.each(function() {
+            var $editor = $(this);
+
+            $editor.closest('form').on('submit', function(e) {
+                if (getValues($editor).length === 0) {
+                    e.preventDefault();
+                    showToast(l10n.tagEmpty || '请至少保留一项后再保存。', true);
+                    return;
+                }
+
+                var renames = {};
+                $editor.find('.ae-cat-item').each(function() {
+                    var $item = $(this);
+                    var origin = $item.attr('data-origin') || '';
+                    var current = $item.find('.ae-cat-name').text();
+                    if (origin && current && origin !== current) {
+                        renames[origin] = current;
+                    }
+                });
+                $editor.find('.ae-cat-renames').val(JSON.stringify(renames));
+            });
+        });
+
+        $editors.each(function() { sync($(this)); });
     })();
 });
