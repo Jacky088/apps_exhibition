@@ -625,17 +625,31 @@
     color: #007cba;
 }
 
+/* 海报项：竖向拖拽手柄与预览图并排，手柄高度与海报一致 */
+.poster-media-row {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 8px;
+}
+
+.poster-media-row .poster-preview-img {
+    align-self: center;
+}
+
 .poster-drag-handle {
-    display: inline-flex;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 3px;
-    margin-bottom: 6px;
-    padding: 2px 6px;
+    gap: 5px;
+    flex: 0 0 auto;
+    width: 28px;
+    padding: 7px 0;
+    box-sizing: border-box;
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 6px;
-    color: #666;
-    line-height: 1;
+    color: #b4b9be;
     cursor: grab;
     user-select: none;
 }
@@ -649,16 +663,22 @@
     cursor: grabbing;
 }
 
-.poster-drag-handle .dashicons {
-    width: 16px;
-    height: 16px;
-    font-size: 16px;
-}
-
 .poster-drag-handle .poster-order {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     color: #007cba;
+    line-height: 1;
+}
+
+/* 竖向抓取纹路：圆点纵向重复填充剩余高度，使手柄始终与海报等高 */
+.poster-drag-handle .poster-drag-grip {
+    flex: 1 1 auto;
+    width: 8px;
+    min-height: 0;
+    background-image: radial-gradient(circle, currentColor 1.3px, transparent 1.4px);
+    background-size: 8px 10px;
+    background-repeat: repeat;
+    opacity: 0.55;
 }
 
 /* 拖拽占位符 */

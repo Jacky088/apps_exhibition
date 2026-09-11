@@ -15,6 +15,7 @@ jQuery(document).ready(function($) {
     // =============================================
     var $overlay = $('#ae-modal-overlay');
     var $iconRemoveOverlay = $('#ae-icon-remove-overlay');
+    var $confirmOverlay = $('#ae-confirm-overlay');
     var $form = $('#apps-exhibition-form');
     var $title = $('#ae-modal-title');
 
@@ -73,6 +74,8 @@ jQuery(document).ready(function($) {
     $overlay.on('click', function(e) { if ($(e.target).is($overlay)) closeModal(); });
     $(document).on('keydown', function(e) {
         if (e.key !== 'Escape') return;
+        // 通用确认弹窗层级最高，优先关闭
+        if ($confirmOverlay.is(':visible')) { closeConfirm(); return; }
         // 移除图标确认弹窗优先关闭，避免同时关掉下层的应用编辑弹窗
         if ($iconRemoveOverlay.is(':visible')) { $iconRemoveOverlay.fadeOut(200); return; }
         if ($overlay.is(':visible')) closeModal();
@@ -95,30 +98,99 @@ jQuery(document).ready(function($) {
     });
 
     // =============================================
-    // 内联删除确认
+    // 通用二次确认弹窗
+    // 所有删除/移除操作统一走此弹窗：说明影响 + 提示「保存后生效」
+    // =============================================
+    var confirmCallback = null;
+
+    function openConfirm(opts) {
+        opts = opts || {};
+
+        $('#ae-confirm-title').text(opts.title || (l10n.confirmTitle || '请确认操作'));
+
+        if (opts.lead) {
+            $('#ae-confirm-lead').text(opts.lead).show();
+        } else {
+            $('#ae-confirm-lead').hide();
+        }
+
+        var $list = $('#ae-confirm-list').empty();
+        if (opts.items && opts.items.length) {
+            opts.items.forEach(function(item) {
+                $list.append($('<li>').text(item));
+            });
+            $list.show();
+        } else {
+            $list.hide();
+        }
+
+        if (opts.notice) {
+            $('#ae-confirm-notice-text').text(opts.notice);
+            $('#ae-confirm-notice').show();
+        } else {
+            $('#ae-confirm-notice').hide();
+        }
+
+        $('#ae-confirm-ok').text(opts.okText || (l10n.confirmBtn || '确认'));
+        confirmCallback = opts.onConfirm || null;
+
+        $confirmOverlay.fadeIn(200);
+        $('body').css('overflow', 'hidden');
+    }
+
+    function closeConfirm() {
+        $confirmOverlay.fadeOut(200);
+        // 仅当没有其他模态框打开时才恢复页面滚动
+        if (!$overlay.is(':visible') && !$iconRemoveOverlay.is(':visible')) {
+            $('body').css('overflow', '');
+        }
+        confirmCallback = null;
+    }
+
+    $('#ae-confirm-close, #ae-confirm-cancel').on('click', closeConfirm);
+    $confirmOverlay.on('click', function(e) {
+        if ($(e.target).is($confirmOverlay)) closeConfirm();
+    });
+    $('#ae-confirm-ok').on('click', function() {
+        var cb = confirmCallback;
+        closeConfirm();
+        if (typeof cb === 'function') cb();
+    });
+
+    // =============================================
+    // 列表页删除（页面无保存按钮，二次确认后立即生效）
     // =============================================
     $(document).on('click', '.ae-delete-btn', function(e) {
         e.preventDefault();
-        var $wrap = $(this).closest('.ae-delete-wrap');
         var href = $(this).attr('href');
-        $wrap.html(
-            '<span class="ae-delete-confirm">' +
-            '<a href="' + href + '">' + (l10n.confirmDelete || '确认删除？') + '</a> ' +
-            '<span class="ae-cancel-delete">' + (l10n.cancel || '取消') + '</span>' +
-            '</span>'
-        );
-    });
+        var name = $(this).closest('tr').attr('data-name') || '';
 
-    $(document).on('click', '.ae-cancel-delete', function() {
-        var $wrap = $(this).closest('.ae-delete-wrap');
-        var href = $wrap.find('.ae-delete-confirm a').attr('href');
-        $wrap.html('<a href="' + href + '" class="button button-small ae-delete-btn" title="' + (l10n.deleteBtn || '删除') + '"><span class="dashicons dashicons-trash"></span></a>');
+        openConfirm({
+            title: l10n.confirmDeleteAppTitle || '确认删除该应用？',
+            lead: (l10n.confirmDeleteAppLead || '即将删除应用：') + name,
+            items: [
+                l10n.confirmDeleteAppItem1 || '点击「确认删除」后会立即执行删除，无需额外保存；',
+                l10n.confirmDeleteAppItem2 || '该应用数据与其图标将从数据库和媒体库中被永久删除（含各种缩略图尺寸），删除后无法恢复；',
+                l10n.confirmDeleteAppItem3 || '若该图标仍被其他应用或首页海报引用，则会自动保留，不会误删。'
+            ],
+            notice: l10n.confirmDeleteAppNotice || '温馨提示：此操作不可恢复；如需保留该应用，请点击「取消」。',
+            okText: l10n.confirmDeleteBtn || '确认删除',
+            onConfirm: function() {
+                if (href) { window.location.href = href; }
+            }
+        });
     });
 
     // =============================================
     // 图标上传
     // =============================================
     var iconUploader;
+
+    function applyIcon(url) {
+        $('#app_icon').val(url);
+        $('#app_icon_preview').css('background-image', 'url(' + url + ')');
+    }
+
     $('#upload_icon_button').on('click', function(e) {
         e.preventDefault();
         if (iconUploader) { iconUploader.open(); return; }
@@ -129,8 +201,27 @@ jQuery(document).ready(function($) {
         });
         iconUploader.on('select', function() {
             var att = iconUploader.state().get('selection').first().toJSON();
-            $('#app_icon').val(att.url);
-            $('#app_icon_preview').css('background-image', 'url(' + att.url + ')');
+            var oldUrl = $('#app_icon').val() || '';
+
+            // 编辑状态下更换图标会删除原图标，需二次确认
+            if (oldUrl && oldUrl !== att.url) {
+                openConfirm({
+                    title: l10n.confirmChangeIconTitle || '确认更换应用图标？',
+                    lead: l10n.confirmChangeIconLead || '即将用新选择的图标替换当前图标：',
+                    items: [
+                        l10n.confirmChangeIconItem1 || '新图标会立即显示在表单预览中，此时尚未保存；',
+                        l10n.confirmChangeIconItem2 || '点击「保存」后，原图标将从 WordPress 媒体库中被永久删除（含各种缩略图尺寸），删除后无法恢复；',
+                        l10n.confirmChangeIconItem3 || '若原图标仍被其他应用或首页海报引用，则会自动保留，不会误删；',
+                        l10n.confirmChangeIconItem4 || '未点击「保存」前取消或关闭窗口，将保留原图标。'
+                    ],
+                    notice: l10n.confirmChangeIconNotice || '温馨提示：更换将在点击「保存」后生效；如需保留原图标，请点击「取消」。',
+                    okText: l10n.confirmChangeIconBtn || '确认更换',
+                    onConfirm: function() { applyIcon(att.url); }
+                });
+                return;
+            }
+
+            applyIcon(att.url);
         });
         iconUploader.open();
     });
@@ -189,13 +280,38 @@ jQuery(document).ready(function($) {
     });
 
     $(document).on('click', '.remove-download-button', function() {
-        if ($('#downloads_container .download-item').length > 1) {
-            $(this).closest('.download-item').remove();
-        } else {
-            $(this).closest('.download-item').find('input[name="download_url[]"]').val('');
-            $(this).closest('.download-item').find('input[name="download_text[]"]').val('');
-        }
-        updateAddDownloadBtn();
+        var $item = $(this).closest('.download-item');
+        var url = $item.find('input[name="download_url[]"]').val().trim();
+        var text = $item.find('input[name="download_text[]"]').val().trim();
+        var isLast = $('#downloads_container .download-item').length <= 1;
+
+        var targetDesc = (url || text)
+            ? (l10n.confirmRemoveDownloadTarget || '下载链接：') + (url || '') + '（' + (text || '') + '）'
+            : (l10n.confirmRemoveDownloadEmpty || '该下载链接尚未填写完整内容');
+
+        openConfirm({
+            title: l10n.confirmRemoveDownloadTitle || '确认删除该下载链接？',
+            lead: l10n.confirmRemoveDownloadLead || '即将从当前表单中移除以下下载链接：',
+            items: [
+                targetDesc,
+                isLast
+                    ? (l10n.confirmRemoveDownloadLast || '这是最后一个下载链接，确认后该行会被清空（每个应用至少需要保留一个下载链接）；')
+                    : (l10n.confirmRemoveDownloadItem1 || '该下载链接会立即从当前表单中移除；'),
+                l10n.confirmRemoveDownloadItem2 || '点击表单中的「保存」后，更改才会真正保存；',
+                l10n.confirmRemoveDownloadItem3 || '未点击「保存」前关闭窗口，将恢复原有的下载链接。'
+            ],
+            notice: l10n.confirmRemoveDownloadNotice || '温馨提示：删除将在点击「保存」后生效；如需保留，请点击「取消」。',
+            okText: l10n.confirmRemoveDownloadBtn || '确认删除',
+            onConfirm: function() {
+                if ($('#downloads_container .download-item').length > 1) {
+                    $item.remove();
+                } else {
+                    $item.find('input[name="download_url[]"]').val('');
+                    $item.find('input[name="download_text[]"]').val('');
+                }
+                updateAddDownloadBtn();
+            }
+        });
     });
 
     // =============================================
@@ -257,8 +373,23 @@ jQuery(document).ready(function($) {
     });
 
     $('#ae-bulk-delete-btn').on('click', function() {
-        if ($('.ae-row-check:checked').length === 0) { alert(l10n.noBulkSelected); return; }
-        if (confirm(l10n.confirmBulkDelete)) { $('#ae-bulk-form').submit(); }
+        var $checked = $('.ae-row-check:checked');
+        if ($checked.length === 0) { alert(l10n.noBulkSelected); return; }
+
+        openConfirm({
+            title: l10n.confirmBulkDeleteTitle || '确认批量删除所选应用？',
+            lead: (l10n.confirmBulkDeleteLead || '即将删除所选的 %d 个应用：').replace('%d', $checked.length),
+            items: [
+                l10n.confirmBulkDeleteItem1 || '点击「确认删除」后会立即执行删除，无需额外保存；',
+                l10n.confirmBulkDeleteItem2 || '这些应用及其图标将从数据库和媒体库中被永久删除（含各种缩略图尺寸），删除后无法恢复；',
+                l10n.confirmBulkDeleteItem3 || '若某图标仍被其他应用或首页海报引用，则会自动保留，不会误删。'
+            ],
+            notice: l10n.confirmBulkDeleteNotice || '温馨提示：此操作不可恢复；如需保留，请点击「取消」。',
+            okText: l10n.confirmDeleteBtn || '确认删除',
+            onConfirm: function() {
+                $('#ae-bulk-form').submit();
+            }
+        });
     });
 
     // =============================================
@@ -423,8 +554,8 @@ jQuery(document).ready(function($) {
         // 拖拽手柄（含顺序序号）：按住手柄可调整海报顺序
         function posterHandleHtml(order) {
             return '<div class="poster-drag-handle" title="' + escAttr(l10n.dragToSort || '拖拽调整顺序') + '">' +
-                '<span class="dashicons dashicons-move"></span>' +
                 '<span class="poster-order">' + order + '</span>' +
+                '<span class="poster-drag-grip"></span>' +
                 '</div>';
         }
 
@@ -435,8 +566,10 @@ jQuery(document).ready(function($) {
             for (var i = 0; i < posters.length; i++) {
                 config += '<div class="poster-config-item" data-index="' + i + '" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display:flex; align-items:flex-start; gap:15px;">' +
                     '<div style="flex:0 0 auto; text-align:center;">' +
+                    '<div class="poster-media-row">' +
                     posterHandleHtml(i + 1) +
-                    '<img src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;">' +
+                    '<img class="poster-preview-img" src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;">' +
+                    '</div>' +
                     '<div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">' +
                     '<button type="button" class="button button-small change-poster-conf">' + (l10n.changePosterBtn || '更换图片') + '</button>' +
                     '<button type="button" class="button button-small remove-poster-conf">' + (l10n.removePosterBtn || '删除图片') + '</button>' +

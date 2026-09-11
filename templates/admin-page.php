@@ -150,9 +150,7 @@ settings_errors( 'apps_exhibition_messages' );
                             <td class="ae-col-category"><?php echo esc_html( implode( ', ', $filter_cats ) ); ?></td>
                             <td class="ae-col-actions">
                                 <button type="button" class="button button-small ae-edit-btn" title="<?php esc_attr_e( '编辑', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-edit"></span></button>
-                                <span class="ae-delete-wrap">
-                                    <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=apps_exhibition_delete&id=' . $app['id'] ), 'apps_exhibition_delete_' . $app['id'] ) ); ?>" class="button button-small ae-delete-btn" title="<?php esc_attr_e( '删除', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-trash"></span></a>
-                                </span>
+                                <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=apps_exhibition_delete&id=' . $app['id'] ), 'apps_exhibition_delete_' . $app['id'] ) ); ?>" class="button button-small ae-delete-btn" title="<?php esc_attr_e( '删除', 'apps-exhibition' ); ?>"><span class="dashicons dashicons-trash"></span></a>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -316,6 +314,28 @@ settings_errors( 'apps_exhibition_messages' );
         </div>
     </div>
 
+    <!-- 通用二次确认弹窗（删除应用 / 批量删除 / 删除下载链接） -->
+    <div class="ae-modal-overlay" id="ae-confirm-overlay" style="display:none;">
+        <div class="ae-modal ae-confirm-modal">
+            <div class="ae-modal-header">
+                <h2 id="ae-confirm-title"><?php esc_html_e( '请确认操作', 'apps-exhibition' ); ?></h2>
+                <button type="button" class="ae-modal-close" id="ae-confirm-close">&times;</button>
+            </div>
+            <div class="ae-modal-body">
+                <p class="ae-confirm-lead" id="ae-confirm-lead" style="display:none;"></p>
+                <ul class="ae-confirm-list" id="ae-confirm-list" style="display:none;"></ul>
+                <p class="ae-confirm-notice" id="ae-confirm-notice" style="display:none;">
+                    <span class="dashicons dashicons-warning"></span>
+                    <span id="ae-confirm-notice-text"></span>
+                </p>
+                <div class="ae-form-actions">
+                    <button type="button" class="button ae-btn-danger" id="ae-confirm-ok"><?php esc_html_e( '确认', 'apps-exhibition' ); ?></button>
+                    <button type="button" class="button" id="ae-confirm-cancel"><?php esc_html_e( '取消', 'apps-exhibition' ); ?></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <?php elseif ( $current_tab === 'settings' ) : ?>
 
     <div class="ae-settings-wrap">
@@ -366,7 +386,7 @@ settings_errors( 'apps_exhibition_messages' );
 
     <p class="ae-poster-sort-hint">
         <span class="dashicons dashicons-move"></span>
-        <span><?php esc_html_e( '排序：按住海报卡片左上角的「拖拽手柄」即可调整顺序。调整后请点击「保存海报配置」生效，前端轮播将按此顺序展示。', 'apps-exhibition' ); ?></span>
+        <span><?php esc_html_e( '排序：按住海报卡片左侧的「拖拽手柄」即可调整顺序。调整后请点击「保存海报配置」生效，前端轮播将按此顺序展示。', 'apps-exhibition' ); ?></span>
     </p>
 
     <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:20px;">
@@ -382,11 +402,13 @@ settings_errors( 'apps_exhibition_messages' );
             ?>
             <div class="poster-config-item" data-index="<?php echo esc_attr( $poster_index - 1 ); ?>" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display: flex; align-items: flex-start; gap: 15px;">
                 <div style="flex: 0 0 auto; text-align: center;">
-                    <div class="poster-drag-handle" title="<?php esc_attr_e( '拖拽调整顺序', 'apps-exhibition' ); ?>">
-                        <span class="dashicons dashicons-move"></span>
-                        <span class="poster-order"><?php echo esc_html( $poster_index ); ?></span>
+                    <div class="poster-media-row">
+                        <div class="poster-drag-handle" title="<?php esc_attr_e( '拖拽调整顺序', 'apps-exhibition' ); ?>">
+                            <span class="poster-order"><?php echo esc_html( $poster_index ); ?></span>
+                            <span class="poster-drag-grip"></span>
+                        </div>
+                        <img class="poster-preview-img" src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:200px; max-height:150px; border-radius: 6px;">
                     </div>
-                    <img src="<?php echo esc_url( $poster['url'] ); ?>" style="max-width:200px; max-height:150px; border-radius: 6px;">
                     <div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">
                         <button type="button" class="button button-small change-poster-conf"><?php esc_html_e( '更换图片', 'apps-exhibition' ); ?></button>
                         <button type="button" class="button button-small remove-poster-conf"><?php esc_html_e( '删除图片', 'apps-exhibition' ); ?></button>
