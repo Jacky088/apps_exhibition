@@ -181,13 +181,19 @@ function apps_exhibition_shortcode() {
                            href="#"
                            data-category="__all__"
                            data-order=""
-                        ><?php esc_html_e( '全部', 'apps-exhibition' ); ?></a>
+                        >
+                            <?php echo Apps_Exhibition::get_category_icon_html( '__all__' ); ?>
+                            <span class="filter-text"><?php esc_html_e( '全部', 'apps-exhibition' ); ?></span>
+                        </a>
                         <?php foreach ( $categories_in_use as $category ) : ?>
                             <a class="filter-btn<?php echo ( $filter_category === $category ) ? ' active' : ''; ?>"
                                href="#"
                                data-category="<?php echo esc_attr( $category ); ?>"
                                data-order="<?php echo esc_attr( implode( ',', $sorted_apps_by_category[ $category ] ?? [] ) ); ?>"
-                            ><?php echo esc_html( $category ); ?></a>
+                            >
+                                <?php echo Apps_Exhibition::get_category_icon_html( $category ); ?>
+                                <span class="filter-text"><?php echo esc_html( $category ); ?></span>
+                            </a>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -213,11 +219,19 @@ function apps_exhibition_shortcode() {
                     </div>
 
                     <div class="app-text-content">
-                        <h3 class="app-name"><?php echo esc_html( $app['app_name'] ); ?></h3>
+                        <h3 class="app-name">
+                            <?php echo esc_html( $app['app_name'] ); ?>
+                            <?php if ( ! empty( $app['app_badge'] ) ) : ?>
+                                <span class="app-badge"><?php echo esc_html( $app['app_badge'] ); ?></span>
+                            <?php endif; ?>
+                        </h3>
                         <div class="app-desc"><?php echo esc_html( $app['app_description'] ); ?></div>
                         <div class="app-platform-tags">
                             <?php foreach ($platforms as $plat): if(trim($plat)): ?>
-                                <span class="platform-tag"><?php echo esc_html($plat); ?></span>
+                                <span class="platform-tag">
+                                    <?php echo Apps_Exhibition::get_platform_icon_html( trim($plat) ); ?>
+                                    <span class="platform-name"><?php echo esc_html( trim($plat) ); ?></span>
+                                </span>
                             <?php endif; endforeach; ?>
                         </div>
                     </div>

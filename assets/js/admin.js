@@ -3,36 +3,65 @@ jQuery(document).ready(function($) {
 
     var l10n = window.appsExhibitionL10n || {};
 
-    // HTML 属性值转义：防止值中的引号/尖括号破坏属性边界导致 XSS
+    // HTML 属性值转义
     function escAttr( value ) {
         return String( value == null ? '' : value ).replace( /[&<>"']/g, function( c ) {
             return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ c ];
         } );
     }
 
+    // 确保任何系统通知消息始终置于页面最顶部的 .ae-notices-container 中
+    function ensureNoticesAtTop() {
+        var $notices = $('.ae-admin-wrapper .notice, .ae-admin-wrapper div.updated, .ae-admin-wrapper div.error');
+        if ($notices.length) {
+            var $container = $('.ae-notices-container');
+            if ($container.length && !$notices.parent().is('.ae-notices-container')) {
+                $container.append($notices);
+            }
+        }
+    }
+    ensureNoticesAtTop();
+    setTimeout(ensureNoticesAtTop, 80);
+
+    function showToast(msg, isError) {
+        var $toast = $('<div class="ae-sort-toast' + (isError ? ' ae-toast-error' : '') + '">' + msg + '</div>');
+        $('body').append($toast);
+        setTimeout(function() {
+            $toast.fadeOut(300, function() { $toast.remove(); });
+        }, 2200);
+    }
+
     // =============================================
-    // 模态框
+    // 模态框通用状态与事件
     // =============================================
     var $overlay = $('#ae-modal-overlay');
     var $iconRemoveOverlay = $('#ae-icon-remove-overlay');
     var $confirmOverlay = $('#ae-confirm-overlay');
+    var $helpOverlay = $('#ae-help-overlay');
+    var $lightboxOverlay = $('#ae-poster-lightbox-overlay');
+    var $moveOverlay = $('#ae-move-modal-overlay');
+    var $posterConfirmOverlay = $('#ae-poster-confirm-overlay');
+
     var $form = $('#apps-exhibition-form');
     var $title = $('#ae-modal-title');
 
     function openModal(mode, data) {
         $form[0].reset();
         $('#ae-form-app-id').val(0);
+        $('#app_badge').val('');
         $('#app_icon').val('');
         $('#app_icon_preview').css('background-image', 'none');
         $('#ae-removed-icon-url').val('');
         $('#downloads_container').html(getDownloadItemHtml('', ''));
         updateAddDownloadBtn();
         $form.find('input[type="checkbox"]').prop('checked', false);
+        $form.find('.ae-chip-card').removeClass('is-checked');
 
         if (mode === 'edit' && data) {
             $title.text(l10n.editApp || '编辑应用');
             $('#ae-form-app-id').val(data.id);
             $('#app_name').val(data.name);
+            $('#app_badge').val(data.badge || '');
             $('#app_description').val(data.description);
             $('#app_icon').val(data.icon);
             if (data.icon) {
@@ -40,12 +69,16 @@ jQuery(document).ready(function($) {
             }
             if (data.platforms) {
                 data.platforms.split(',').forEach(function(p) {
-                    $form.find('input[name="app_platforms[]"][value="' + $.escapeSelector(p.trim()) + '"]').prop('checked', true);
+                    var $cb = $form.find('input[name="app_platforms[]"][value="' + $.escapeSelector(p.trim()) + '"]');
+                    $cb.prop('checked', true);
+                    $cb.closest('.ae-chip-card').addClass('is-checked');
                 });
             }
             if (data.filterCategory) {
                 data.filterCategory.split(',').forEach(function(c) {
-                    $form.find('input[name="app_filter_category[]"][value="' + $.escapeSelector(c.trim()) + '"]').prop('checked', true);
+                    var $cb = $form.find('input[name="app_filter_category[]"][value="' + $.escapeSelector(c.trim()) + '"]');
+                    $cb.prop('checked', true);
+                    $cb.closest('.ae-chip-card').addClass('is-checked');
                 });
             }
             if (data.downloads && data.downloads.length > 0) {
@@ -72,15 +105,64 @@ jQuery(document).ready(function($) {
     $('#ae-add-app-btn').on('click', function() { openModal('add'); });
     $('#ae-modal-close, #ae-form-cancel').on('click', closeModal);
     $overlay.on('click', function(e) { if ($(e.target).is($overlay)) closeModal(); });
+
+    // 平台与分类芯片卡片勾选联动
+    $form.on('change', '.ae-chip-checkbox', function() {
+        var $card = $(this).closest('.ae-chip-card');
+        if (this.checked) {
+            $card.addClass('is-checked');
+        } else {
+            $card.removeClass('is-checked');
+        }
+    });
+
+    // 帮助弹窗
+    $('#ae-help-toggle-btn').on('click', function() {
+        $helpOverlay.fadeIn(200);
+        $('body').css('overflow', 'hidden');
+    });
+    $('#ae-help-close, #ae-help-confirm').on('click', function() {
+        $helpOverlay.fadeOut(200);
+        $('body').css('overflow', '');
+    });
+    $helpOverlay.on('click', function(e) {
+        if ($(e.target).is($helpOverlay)) {
+            $helpOverlay.fadeOut(200);
+            $('body').css('overflow', '');
+        }
+    });
+
+    // 海报灯箱大图预览
+    $(document).on('click', '.poster-preview-action', function(e) {
+        e.preventDefault();
+        var url = $(this).attr('data-url');
+        if (!url) return;
+        $('#ae-lightbox-img').attr('src', url);
+        $lightboxOverlay.fadeIn(200);
+        $('body').css('overflow', 'hidden');
+    });
+    $('#ae-lightbox-close').on('click', function() {
+        $lightboxOverlay.fadeOut(200);
+        $('body').css('overflow', '');
+    });
+    $lightboxOverlay.on('click', function(e) {
+        if ($(e.target).is($lightboxOverlay)) {
+            $lightboxOverlay.fadeOut(200);
+            $('body').css('overflow', '');
+        }
+    });
+
     $(document).on('keydown', function(e) {
         if (e.key !== 'Escape') return;
-        // 通用确认弹窗层级最高，优先关闭
         if ($confirmOverlay.is(':visible')) { closeConfirm(); return; }
-        // 移除图标确认弹窗优先关闭，避免同时关掉下层的应用编辑弹窗
         if ($iconRemoveOverlay.is(':visible')) { $iconRemoveOverlay.fadeOut(200); return; }
+        if ($posterConfirmOverlay.is(':visible')) { $posterConfirmOverlay.fadeOut(200); return; }
+        if ($helpOverlay.is(':visible')) { $helpOverlay.fadeOut(200); $('body').css('overflow', ''); return; }
+        if ($lightboxOverlay.is(':visible')) { $lightboxOverlay.fadeOut(200); $('body').css('overflow', ''); return; }
         if ($overlay.is(':visible')) closeModal();
     });
 
+    // 编辑按钮
     $(document).on('click', '.ae-edit-btn', function() {
         var $row = $(this).closest('tr');
         var downloads = [];
@@ -89,6 +171,7 @@ jQuery(document).ready(function($) {
         openModal('edit', {
             id: $row.attr('data-id'),
             name: $row.attr('data-name'),
+            badge: $row.attr('data-badge'),
             description: $row.attr('data-description'),
             icon: $row.attr('data-icon'),
             platforms: $row.attr('data-platforms'),
@@ -99,13 +182,11 @@ jQuery(document).ready(function($) {
 
     // =============================================
     // 通用二次确认弹窗
-    // 所有删除/移除操作统一走此弹窗：说明影响 + 提示「保存后生效」
     // =============================================
     var confirmCallback = null;
 
     function openConfirm(opts) {
         opts = opts || {};
-
         $('#ae-confirm-title').text(opts.title || (l10n.confirmTitle || '请确认操作'));
 
         if (opts.lead) {
@@ -140,7 +221,6 @@ jQuery(document).ready(function($) {
 
     function closeConfirm() {
         $confirmOverlay.fadeOut(200);
-        // 仅当没有其他模态框打开时才恢复页面滚动
         if (!$overlay.is(':visible') && !$iconRemoveOverlay.is(':visible')) {
             $('body').css('overflow', '');
         }
@@ -157,9 +237,7 @@ jQuery(document).ready(function($) {
         if (typeof cb === 'function') cb();
     });
 
-    // =============================================
-    // 列表页删除（页面无保存按钮，二次确认后立即生效）
-    // =============================================
+    // 应用单项删除确认
     $(document).on('click', '.ae-delete-btn', function(e) {
         e.preventDefault();
         var href = $(this).attr('href');
@@ -182,7 +260,7 @@ jQuery(document).ready(function($) {
     });
 
     // =============================================
-    // 图标上传
+    // 应用图标上传
     // =============================================
     var iconUploader;
 
@@ -203,7 +281,6 @@ jQuery(document).ready(function($) {
             var att = iconUploader.state().get('selection').first().toJSON();
             var oldUrl = $('#app_icon').val() || '';
 
-            // 编辑状态下更换图标会删除原图标，需二次确认
             if (oldUrl && oldUrl !== att.url) {
                 openConfirm({
                     title: l10n.confirmChangeIconTitle || '确认更换应用图标？',
@@ -233,16 +310,12 @@ jQuery(document).ready(function($) {
 
     $('#remove_icon_button').on('click', function(e) {
         e.preventDefault();
-        // 未选择图标时无需二次确认，直接清空
         if (!$('#app_icon').val()) { clearIconField(); return; }
-
-        // 展示待移除图标的预览，配合影响说明帮助用户确认
         $('#ae-icon-remove-preview').css('background-image', 'url(' + $('#app_icon').val() + ')');
         $iconRemoveOverlay.fadeIn(200);
     });
 
     $('#ae-icon-remove-confirm').on('click', function() {
-        // 记录被移除的图标 URL，保存时由后端联动清理媒体库孤儿图片
         $('#ae-removed-icon-url').val($('#app_icon').val());
         clearIconField();
         $iconRemoveOverlay.fadeOut(200);
@@ -257,15 +330,17 @@ jQuery(document).ready(function($) {
     });
 
     // =============================================
-    // 下载链接
+    // 下载链接表单交互
     // =============================================
     var MAX_DOWNLOADS = 3;
 
     function getDownloadItemHtml(url, text) {
         return '<div class="download-item">' +
-            '<input type="url" name="download_url[]" placeholder="' + (l10n.downloadUrlPlc || '下载链接 URL') + '" value="' + escAttr(url || '') + '" style="width:55%;" required />' +
-            '<input type="text" name="download_text[]" placeholder="' + (l10n.downloadTextPlc || '按钮文字（如：下载、安卓商店）') + '" value="' + escAttr(text || '') + '" style="width:30%;" required />' +
-            '<button type="button" class="button-link remove-download-button" title="' + (l10n.deleteBtn || '删除') + '"><span class="dashicons dashicons-dismiss"></span></button>' +
+            '<input type="url" name="download_url[]" placeholder="' + escAttr(l10n.downloadUrlPlc || '下载链接 URL') + '" value="' + escAttr(url || '') + '" class="ae-input dl-url" required />' +
+            '<input type="text" name="download_text[]" placeholder="' + escAttr(l10n.downloadTextPlc || '按钮文字（如：下载、安卓商店）') + '" value="' + escAttr(text || '') + '" class="ae-input dl-text" required />' +
+            '<button type="button" class="ae-square-btn ae-square-btn-delete remove-download-button" title="' + escAttr(l10n.deleteBtn || '删除') + '">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>' +
+            '</button>' +
             '</div>';
     }
 
@@ -314,52 +389,267 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // =============================================
-    // 表单校验
-    // =============================================
+    // 表单提交校验
     $form.on('submit', function() {
         if (!$('#app_name').val().trim() || !$('#app_description').val().trim() || !$('#app_icon').val().trim()) {
-            alert(l10n.fillRequired); return false;
+            alert(l10n.fillRequired || '请填写所有必填项 (应用名称、描述、图标)。');
+            return false;
         }
         if ($form.find('input[name="app_platforms[]"]:checked').length === 0) {
-            alert(l10n.selectPlatform); return false;
+            alert(l10n.selectPlatform || '请至少选择一个平台分类。');
+            return false;
         }
         if ($form.find('input[name="app_filter_category[]"]:checked').length === 0) {
-            alert(l10n.selectFilter); return false;
+            alert(l10n.selectFilter || '请至少选择一个筛选分类。');
+            return false;
         }
         var hasValid = false, valid = true;
         $('#downloads_container .download-item').each(function() {
             var url = $(this).find('input[name="download_url[]"]').val().trim();
             var text = $(this).find('input[name="download_text[]"]').val().trim();
             if (url && text) { hasValid = true; }
-            else if (url || text) { alert(l10n.fillDownload); valid = false; return false; }
+            else if (url || text) {
+                alert(l10n.fillDownload || '请确保所有下载链接和按钮文字均已填写。');
+                valid = false;
+                return false;
+            }
         });
-        if (!hasValid) { alert(l10n.needOneDownload); return false; }
+        if (!hasValid) {
+            alert(l10n.needOneDownload || '请至少填写一个完整下载链接（URL和按钮文字）。');
+            return false;
+        }
         return valid;
     });
 
     // =============================================
-    // 搜索
+    // 应用列表：分页、搜索、排序与全选联动
     // =============================================
+    var currentPage = 1;
+    var pageSize = 10;
+    var sortColumn = '';
+    var sortDirection = 'asc';
+
+    function getVisibleRows() {
+        return $('#ae-sortable-body tr[data-id]:not(.ae-category-hidden):not(.ae-search-hidden)');
+    }
+
+    function renderPagination() {
+        var $visibleRows = getVisibleRows();
+        var total = $visibleRows.length;
+        $('#ae-pagination-total').text('共 ' + total + ' 条');
+
+        if (pageSize === 'all' || pageSize >= total || total === 0) {
+            $visibleRows.removeClass('ae-page-hidden');
+            $('#ae-page-numbers').empty();
+            $('#ae-page-prev').prop('disabled', true);
+            $('#ae-page-next').prop('disabled', true);
+            return;
+        }
+
+        var totalPages = Math.ceil(total / pageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        var startIdx = (currentPage - 1) * pageSize;
+        var endIdx = startIdx + pageSize;
+
+        $visibleRows.each(function(index) {
+            $(this).toggleClass('ae-page-hidden', index < startIdx || index >= endIdx);
+        });
+
+        // 渲染页码
+        var $pageContainer = $('#ae-page-numbers').empty();
+        for (var p = 1; p <= totalPages; p++) {
+            var $btn = $('<button type="button" class="ae-page-btn' + (p === currentPage ? ' is-active' : '') + '">' + p + '</button>');
+            (function(page) {
+                $btn.on('click', function() {
+                    currentPage = page;
+                    renderPagination();
+                    updateBulkBtn();
+                });
+            })(p);
+            $pageContainer.append($btn);
+        }
+
+        $('#ae-page-prev').prop('disabled', currentPage <= 1);
+        $('#ae-page-next').prop('disabled', currentPage >= totalPages);
+    }
+
+    $('#ae-page-prev').on('click', function() {
+        if (currentPage > 1) {
+            currentPage--;
+            renderPagination();
+            updateBulkBtn();
+        }
+    });
+
+    $('#ae-page-next').on('click', function() {
+        var total = getVisibleRows().length;
+        var totalPages = Math.ceil(total / pageSize);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderPagination();
+            updateBulkBtn();
+        }
+    });
+
+    $('#ae-page-size-select').on('change', function() {
+        var val = $(this).val();
+        pageSize = val === 'all' ? 'all' : parseInt(val, 10);
+        currentPage = 1;
+        renderPagination();
+        updateBulkBtn();
+    });
+
+    // 搜索过滤联动
     $('#ae-search-input').on('input', function() {
         var keyword = $(this).val().trim().toLowerCase();
         $('#ae-sortable-body tr[data-id]').each(function() {
             var name = ($(this).attr('data-name') || '').toLowerCase();
-            $(this).toggleClass('ae-search-hidden', keyword !== '' && name.indexOf(keyword) === -1);
+            var badge = ($(this).attr('data-badge') || '').toLowerCase();
+            var desc = ($(this).attr('data-description') || '').toLowerCase();
+            var plats = ($(this).attr('data-platforms') || '').toLowerCase();
+            var cats = ($(this).attr('data-filter-category') || '').toLowerCase();
+
+            var match = (keyword === '') ||
+                (name.indexOf(keyword) !== -1) ||
+                (badge.indexOf(keyword) !== -1) ||
+                (desc.indexOf(keyword) !== -1) ||
+                (plats.indexOf(keyword) !== -1) ||
+                (cats.indexOf(keyword) !== -1);
+
+            $(this).toggleClass('ae-search-hidden', !match);
         });
+        currentPage = 1;
+        renderPagination();
+        updateBulkBtn();
+    });
+
+    // 重置搜索/筛选设置按钮
+    $('#ae-filter-setting-btn').on('click', function() {
+        $('#ae-search-input').val('').trigger('input');
+        $('#ae-category-filter').val('').trigger('change');
+        showToast('已重置搜索与筛选条件');
     });
 
     // =============================================
-    // 全选 / 批量删除
+    // 自定义带图标下拉选择器 (Custom Icon Select)
     // =============================================
+    (function() {
+        var $custom = $('#ae-category-filter-custom');
+        if (!$custom.length) return;
+
+        var $trigger = $custom.find('.ae-custom-select-trigger');
+        var $realSelect = $custom.find('select');
+
+        $trigger.on('click', function(e) {
+            e.stopPropagation();
+            var isOpen = $custom.hasClass('is-open');
+            $('.ae-custom-select').removeClass('is-open');
+            if (!isOpen) {
+                $custom.addClass('is-open');
+            }
+        });
+
+        $custom.on('click', '.ae-custom-select-item', function(e) {
+            e.stopPropagation();
+            var $item = $(this);
+            var val = $item.attr('data-value');
+
+            $custom.find('.ae-custom-select-item').removeClass('is-selected');
+            $item.addClass('is-selected');
+
+            $custom.find('.ae-custom-select-selected-icon').html($item.find('.ae-custom-option-icon').html());
+            $custom.find('.ae-custom-select-selected-text').text($item.find('.ae-custom-option-text').text());
+
+            $custom.removeClass('is-open');
+
+            if ($realSelect.val() !== val) {
+                $realSelect.val(val).trigger('change');
+            }
+        });
+
+        $realSelect.on('change', function() {
+            var val = $(this).val();
+            var $matching = $custom.find('.ae-custom-select-item[data-value="' + $.escapeSelector(val) + '"]');
+            if ($matching.length) {
+                $custom.find('.ae-custom-select-item').removeClass('is-selected');
+                $matching.addClass('is-selected');
+                $custom.find('.ae-custom-select-selected-icon').html($matching.find('.ae-custom-option-icon').html());
+                $custom.find('.ae-custom-select-selected-text').text($matching.find('.ae-custom-option-text').text());
+            }
+        });
+
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.ae-custom-select').length) {
+                $('.ae-custom-select').removeClass('is-open');
+            }
+        });
+
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape') {
+                $('.ae-custom-select').removeClass('is-open');
+            }
+        });
+    })();
+
+    // 表头快速排序（名称 / 描述）
+    $('.ae-apps-table th[data-sort-key]').on('click', function() {
+        var key = $(this).attr('data-sort-key');
+        if (sortColumn === key) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = key;
+            sortDirection = 'asc';
+        }
+
+        var $tbody = $('#ae-sortable-body');
+        var $rows = $tbody.find('tr[data-id]').get();
+
+        $rows.sort(function(a, b) {
+            var valA = ($(a).attr(key === 'name' ? 'data-name' : 'data-description') || '').toLowerCase();
+            var valB = ($(b).attr(key === 'name' ? 'data-name' : 'data-description') || '').toLowerCase();
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        $.each($rows, function(idx, item) {
+            $tbody.append(item);
+        });
+
+        renderPagination();
+    });
+
+    // 全选与批量操作状态
     function updateBulkBtn() {
-        var hasSelection = $('.ae-row-check:checked').length > 0;
+        var checkedCount = $('.ae-row-check:checked').length;
+        var hasSelection = checkedCount > 0;
+
         $('#ae-bulk-delete-btn').prop('disabled', !hasSelection);
         $('#ae-bulk-move-btn').prop('disabled', !hasSelection);
+
+        if (hasSelection) {
+            $('#ae-selected-count-label').show();
+            $('#ae-selected-count-num').text(checkedCount);
+            $('#ae-footer-bulk-delete-btn').show().prop('disabled', false);
+            $('#ae-footer-bulk-move-btn').show().prop('disabled', false);
+        } else {
+            $('#ae-selected-count-label').hide();
+            $('#ae-footer-bulk-delete-btn').hide();
+            $('#ae-footer-bulk-move-btn').hide();
+        }
+
+        // 高亮选中行
+        $('.ae-row-check').each(function() {
+            $(this).closest('tr').toggleClass('is-selected', $(this).prop('checked'));
+        });
+
+        var visibleChecks = $('.ae-row-check:visible');
+        var visibleChecked = $('.ae-row-check:visible:checked');
+        $('#ae-check-all').prop('checked', visibleChecks.length > 0 && visibleChecks.length === visibleChecked.length);
     }
 
-    // 全选仅作用于当前可见行（被分类筛选或搜索隐藏的行不受影响），
-    // 避免筛选后全选误将隐藏行一并纳入批量操作
     $('#ae-check-all').on('change', function() {
         $('.ae-row-check:visible').prop('checked', $(this).prop('checked'));
         updateBulkBtn();
@@ -367,14 +657,12 @@ jQuery(document).ready(function($) {
 
     $(document).on('change', '.ae-row-check', function() {
         updateBulkBtn();
-        var total = $('.ae-row-check:visible').length;
-        var checked = $('.ae-row-check:visible:checked').length;
-        $('#ae-check-all').prop('checked', total === checked && total > 0);
     });
 
-    $('#ae-bulk-delete-btn').on('click', function() {
+    // 批量删除
+    function handleBulkDelete() {
         var $checked = $('.ae-row-check:checked');
-        if ($checked.length === 0) { alert(l10n.noBulkSelected); return; }
+        if ($checked.length === 0) { alert(l10n.noBulkSelected || '请先勾选需要操作的应用。'); return; }
 
         openConfirm({
             title: l10n.confirmBulkDeleteTitle || '确认批量删除所选应用？',
@@ -390,18 +678,15 @@ jQuery(document).ready(function($) {
                 $('#ae-bulk-form').submit();
             }
         });
-    });
+    }
 
-    // =============================================
+    $('#ae-bulk-delete-btn, #ae-footer-bulk-delete-btn').on('click', handleBulkDelete);
+
     // 批量移动分类
-    // =============================================
-    var $moveOverlay = $('#ae-move-modal-overlay');
-
     function openMoveModal() {
         var $checked = $('.ae-row-check:checked');
-        if ($checked.length === 0) { alert(l10n.noBulkSelected); return; }
+        if ($checked.length === 0) { alert(l10n.noBulkSelected || '请先勾选需要操作的应用。'); return; }
 
-        // 汇总勾选应用的 ID 与其当前所挂分类（含重命名后遗留的旧分类名）
         var ids = [];
         var catMap = {};
         $checked.each(function() {
@@ -417,32 +702,25 @@ jQuery(document).ready(function($) {
         $('#ae-move-app-ids').val(ids.join(','));
         $('#ae-move-selected-count').text((l10n.moveSelected || '已选择 %d 个应用').replace('%d', ids.length));
 
-        // 源分类选项 = 勾选应用身上实际存在的分类；末尾提供整体覆盖选项
-        var $source = $('#ae-move-source');
-        $source.empty();
+        var $source = $('#ae-move-source').empty();
         Object.keys(catMap).sort().forEach(function(c) {
             $source.append($('<option>', { value: c, text: c }));
         });
         $source.append($('<option>', { value: '', text: l10n.moveAllOption || '全部（覆盖现有分类）' }));
 
-        // 每次打开重置目标分类
         $('#ae-move-target').val('');
-
         $moveOverlay.fadeIn(200);
+        $('body').css('overflow', 'hidden');
     }
 
     function closeMoveModal() {
         $moveOverlay.fadeOut(200);
+        $('body').css('overflow', '');
     }
 
-    $('#ae-bulk-move-btn').on('click', openMoveModal);
+    $('#ae-bulk-move-btn, #ae-footer-bulk-move-btn').on('click', openMoveModal);
     $('#ae-move-modal-close, #ae-move-cancel').on('click', closeMoveModal);
-    $moveOverlay.on('click', function(e) {
-        if ($(e.target).is($moveOverlay)) { closeMoveModal(); }
-    });
-    $(document).on('keydown', function(e) {
-        if (e.key === 'Escape' && $moveOverlay.is(':visible')) { closeMoveModal(); }
-    });
+    $moveOverlay.on('click', function(e) { if ($(e.target).is($moveOverlay)) closeMoveModal(); });
 
     $('#ae-bulk-move-form').on('submit', function() {
         if (!$('#ae-move-target').val()) {
@@ -477,7 +755,6 @@ jQuery(document).ready(function($) {
             },
             update: function() {
                 if (!currentSortCategory) return;
-
                 var order = [];
                 $('#ae-sortable-body tr[data-id]:not(.ae-category-hidden)').each(function() {
                     order.push($(this).attr('data-id'));
@@ -498,21 +775,19 @@ jQuery(document).ready(function($) {
         sortableInitialized = true;
     }
 
-    // 分类选择切换
     $('#ae-category-filter').on('change', function() {
         var category = $(this).val();
         currentSortCategory = category;
 
         if (category === '') {
-            // 全部模式 - 显示所有，禁用排序
             $('#ae-sortable-body tr[data-id]').removeClass('ae-category-hidden');
             $('#ae-apps-table').removeClass('ae-sort-mode');
             $('#ae-sort-hint').hide();
             if (sortableInitialized) {
                 $('#ae-sortable-body').sortable('disable');
             }
+            renderPagination();
         } else {
-            // 分类模式 - 只显示该分类的应用，启用排序
             $('#ae-sortable-body tr[data-id]').each(function() {
                 var cats = ($(this).attr('data-filter-category') || '').split(',').map(function(c) { return c.trim(); });
                 $(this).toggleClass('ae-category-hidden', cats.indexOf(category) === -1);
@@ -520,25 +795,22 @@ jQuery(document).ready(function($) {
             $('#ae-apps-table').addClass('ae-sort-mode');
             $('#ae-sort-hint').show();
 
+            // 排序模式下展示该分类的所有项，便于跨页自由拖动
+            $('#ae-sortable-body tr[data-id]:not(.ae-category-hidden)').removeClass('ae-page-hidden');
             initSortable();
             $('#ae-sortable-body').sortable('enable');
         }
+        updateBulkBtn();
     });
 
-    // 初始化（默认全部模式，不可排序）
     if ($('#ae-sortable-body tr[data-id]').length > 0) {
         initSortable();
         $('#ae-sortable-body').sortable('disable');
-    }
-
-    function showToast(msg, isError) {
-        var $toast = $('<div class="ae-sort-toast' + (isError ? ' ae-toast-error' : '') + '">' + msg + '</div>');
-        $('body').append($toast);
-        setTimeout(function() { $toast.fadeOut(300, function() { $toast.remove(); }); }, 2000);
+        renderPagination();
     }
 
     // =============================================
-    // 首页海报
+    // 「首页海报」Tab 交互逻辑
     // =============================================
     (function() {
         var HOME_POSTERS_INPUT = '#home_posters';
@@ -551,53 +823,53 @@ jQuery(document).ready(function($) {
             catch(e) { return []; }
         }
 
-        // 拖拽手柄（含顺序序号）：按住手柄可调整海报顺序
         function posterHandleHtml(order) {
-            return '<div class="poster-drag-handle" title="' + escAttr(l10n.dragToSort || '拖拽调整顺序') + '">' +
-                '<span class="poster-drag-grip" aria-hidden="true"></span>' +
-                '<span class="poster-order">' + order + '</span>' +
+            return '<div class="poster-handle-badge" title="' + escAttr(l10n.dragToSort || '拖拽调整顺序') + '">' +
+                '<span class="poster-drag-cross"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="5 9 2 12 5 15"></polyline>' +
+                '<polyline points="9 5 12 2 15 5"></polyline>' +
+                '<polyline points="15 19 12 22 9 19"></polyline>' +
+                '<polyline points="19 9 22 12 19 15"></polyline>' +
+                '<line x1="2" y1="12" x2="22" y2="12"></line>' +
+                '<line x1="12" y1="2" x2="12" y2="22"></line>' +
+                '</svg></span>' +
+                '<span class="poster-order-num">' + order + '</span>' +
                 '</div>';
         }
 
-        // 海报配置卡片：图片 + 更换/删除按钮 + 下载链接与按钮文字。
-        // 每个条目写入 data-index（当前数组下标），拖拽后据此还原新顺序。
         function renderConfig(posters) {
             var config = '';
             for (var i = 0; i < posters.length; i++) {
-                config += '<div class="poster-config-item" data-index="' + i + '" style="border:1px solid #ccc; border-radius:6px; padding:10px; margin-bottom:10px; background:#f9f9f9; display:flex; align-items:flex-start; gap:15px;">' +
-                    '<div style="flex:0 0 auto; text-align:center;">' +
-                    '<div class="poster-media-row">' +
+                config += '<div class="poster-config-item" data-index="' + i + '">' +
+                    '<div class="poster-left-panel">' +
                     posterHandleHtml(i + 1) +
-                    '<img class="poster-preview-img" src="' + escAttr(posters[i].url) + '" style="max-width:200px; max-height:150px; border-radius:6px;">' +
+                    '<div class="poster-media-box">' +
+                    '<div class="poster-img-container"><img class="poster-preview-img" src="' + escAttr(posters[i].url) + '" alt="" /></div>' +
+                    '<div class="poster-img-btns">' +
+                    '<button type="button" class="ae-btn ae-btn-xs ae-btn-sub change-poster-conf">' +
+                    '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> <span>' + (l10n.changePosterBtn || '更换图片') + '</span></button>' +
+                    '<button type="button" class="ae-btn ae-btn-xs ae-btn-sub ae-btn-sub-danger remove-poster-conf">' +
+                    '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg> <span>' + (l10n.removePosterBtn || '删除图片') + '</span></button>' +
+                    '</div></div></div>' +
+                    '<div class="poster-middle-panel">' +
+                    '<div class="poster-input-group"><input type="text" class="ae-input download-url-input" placeholder="' + escAttr(l10n.downloadAddrPlc || '下载地址') + '" value="' + escAttr(posters[i].download_url || '') + '"></div>' +
+                    '<div class="poster-input-group"><input type="text" class="ae-input download-text-input" placeholder="' + escAttr(l10n.downloadTextPlc || '按钮文字') + '" value="' + escAttr(posters[i].download_text || '') + '"></div>' +
                     '</div>' +
-                    '<div style="margin-top:6px; display:flex; gap:6px; justify-content:center;">' +
-                    '<button type="button" class="button button-small change-poster-conf">' + (l10n.changePosterBtn || '更换图片') + '</button>' +
-                    '<button type="button" class="button button-small remove-poster-conf">' + (l10n.removePosterBtn || '删除图片') + '</button>' +
-                    '</div>' +
-                    '</div>' +
-                    '<div style="flex:1 1 auto; display:flex; flex-direction:column; gap:10px;">' +
-                    '<div><input type="text" class="widefat download-url-input" placeholder="' + (l10n.downloadAddrPlc || '下载地址') + '" value="' + escAttr(posters[i].download_url || '') + '"></div>' +
-                    '<div><input type="text" class="widefat download-text-input" placeholder="' + (l10n.downloadTextPlc || '按钮文字') + '" value="' + escAttr(posters[i].download_text || '') + '"></div>' +
+                    '<div class="poster-right-panel">' +
+                    '<button type="button" class="poster-action-btn poster-preview-action" data-url="' + escAttr(posters[i].url) + '">' +
+                    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> <span>预览</span></button>' +
+                    '<button type="button" class="poster-action-btn poster-delete-action">' +
+                    '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg> <span>删除</span></button>' +
                     '</div></div>';
             }
             $('#poster_config_list').html(config);
         }
 
-        function renderHomePosters(posters) {
-            renderConfig(posters);
-        }
-
-        // =============================================
-        // 更换 / 删除 图片 二次确认弹窗
-        // 确认后仅更新隐藏域与界面，图片实际删除在「保存海报配置」时由后端联动完成
-        // =============================================
-        var $posterConfirmOverlay = $('#ae-poster-confirm-overlay');
         var posterConfirmTarget = null;
 
         function openPosterConfirm(mode, index, newUrl) {
             var cur = getPostersArray();
             var oldUrl = (cur[index] && cur[index].url) ? cur[index].url : '';
-
             posterConfirmTarget = { mode: mode, index: index, newUrl: newUrl || '' };
 
             $('#ae-poster-confirm-old').css('background-image', oldUrl ? 'url("' + oldUrl + '")' : 'none');
@@ -616,16 +888,17 @@ jQuery(document).ready(function($) {
             }
 
             $posterConfirmOverlay.fadeIn(200);
+            $('body').css('overflow', 'hidden');
         }
 
         function closePosterConfirm() {
             $posterConfirmOverlay.fadeOut(200);
+            $('body').css('overflow', '');
             posterConfirmTarget = null;
         }
 
         $('#ae-poster-confirm-ok').on('click', function() {
             if (!posterConfirmTarget) { closePosterConfirm(); return; }
-
             var target = posterConfirmTarget;
             var cur = getPostersArray();
 
@@ -636,68 +909,65 @@ jQuery(document).ready(function($) {
             }
 
             $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
-            renderHomePosters(cur);
+            renderConfig(cur);
             closePosterConfirm();
         });
 
         $('#ae-poster-confirm-close, #ae-poster-confirm-cancel').on('click', closePosterConfirm);
+        $posterConfirmOverlay.on('click', function(e) { if ($(e.target).is($posterConfirmOverlay)) closePosterConfirm(); });
 
-        $posterConfirmOverlay.on('click', function(e) {
-            if ($(e.target).is($posterConfirmOverlay)) closePosterConfirm();
-        });
-
-        $(document).on('keydown', function(e) {
-            if (e.key === 'Escape' && $posterConfirmOverlay.is(':visible')) closePosterConfirm();
-        });
-
-        // =============================================
-        // 上传 / 更换海报
-        // =============================================
+        // 上传新海报
         var uploadFrame = null, changeFrame = null, changeIdx = -1;
-
         $('#upload_home_poster').on('click', function(e) {
             e.preventDefault();
-            if (getPostersArray().length >= MAX_POSTERS) { alert(l10n.maxPostersAlert); return; }
+            if (getPostersArray().length >= MAX_POSTERS) { alert(l10n.maxPostersAlert || '已达最大海报数量限制。'); return; }
             if (uploadFrame) { uploadFrame.open(); return; }
-            uploadFrame = wp.media({ title: l10n.selectPosterTitle, button: { text: l10n.insertBtn }, multiple: true });
+            uploadFrame = wp.media({ title: l10n.selectPosterTitle || '选择海报图片', button: { text: l10n.insertBtn || '插入' }, multiple: true });
             uploadFrame.on('select', function() {
                 var atts = uploadFrame.state().get('selection').toArray();
                 var cur = getPostersArray();
-                if (cur.length + atts.length > MAX_POSTERS) { alert(l10n.maxPostersExceed); return; }
+                if (cur.length + atts.length > MAX_POSTERS) { alert(l10n.maxPostersExceed || '超过最大海报限制'); return; }
                 atts.forEach(function(att) { cur.push({ url: att.attributes.url, download_url: '', download_text: '' }); });
                 $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
-                renderHomePosters(cur);
+                renderConfig(cur);
             });
             uploadFrame.open();
         });
 
-        // 更换图片：先选新图，若与原图不同再弹二次确认；确认后旧图将在保存时联动删除
+        // 更换海报图片
         $('#poster_config_list').on('click', '.change-poster-conf', function(e) {
             e.preventDefault();
             changeIdx = $(this).closest('.poster-config-item').index();
             if (changeFrame) { changeFrame.open(); return; }
-            changeFrame = wp.media({ title: l10n.selectPosterTitle, button: { text: l10n.insertBtn }, multiple: false });
+            changeFrame = wp.media({ title: l10n.selectPosterTitle || '选择海报图片', button: { text: l10n.insertBtn || '插入' }, multiple: false });
             changeFrame.on('select', function() {
                 var att = changeFrame.state().get('selection').first().toJSON();
                 var cur = getPostersArray();
                 var oldUrl = (cur[changeIdx] && cur[changeIdx].url) ? cur[changeIdx].url : '';
-                if (att.url === oldUrl) { return; } // 未实际更换，无需确认
+                if (att.url === oldUrl) return;
                 openPosterConfirm('change', changeIdx, att.url);
             });
             changeFrame.open();
         });
 
-        // 删除图片：直接弹二次确认
+        // 删除海报图片
         $('#poster_config_list').on('click', '.remove-poster-conf', function(e) {
             e.preventDefault();
             openPosterConfirm('remove', $(this).closest('.poster-config-item').index(), '');
         });
 
+        // 整行删除海报配置卡片
+        $('#poster_config_list').on('click', '.poster-delete-action', function(e) {
+            e.preventDefault();
+            var idx = $(this).closest('.poster-config-item').index();
+            openPosterConfirm('remove', idx, '');
+        });
+
+        // 输入监听
         $('#poster_config_list').on('input', '.download-url-input, .download-text-input', function() {
             var cur = getPostersArray();
             $('#poster_config_list .poster-config-item').each(function(i) {
                 if (cur[i]) {
-                    cur[i].url = $(this).find('img').attr('src') || '';
                     cur[i].download_url = $(this).find('.download-url-input').val().trim();
                     cur[i].download_text = $(this).find('.download-text-input').val().trim();
                 }
@@ -705,58 +975,40 @@ jQuery(document).ready(function($) {
             $(HOME_POSTERS_INPUT).val(JSON.stringify(cur));
         });
 
-        // =============================================
-        // 海报排序（拖拽手柄调整顺序；保存后前端轮播按此顺序展示）
-        // =============================================
-        // 读取被拖拽容器内的 DOM 顺序，还原海报数组，写回隐藏域并重绘列表
-        function applyPosterOrder($container, itemSelector) {
+        // 海报卡片拖拽排序
+        function applyPosterOrder($container) {
             var order = [];
-            $container.children(itemSelector).each(function() {
+            $container.children('.poster-config-item').each(function() {
                 order.push(parseInt($(this).attr('data-index'), 10));
             });
 
             var cur = getPostersArray();
-            // 仅当顺序恰为 0..n-1 的完整排列时才应用，避免异常 DOM 导致数据错乱
             if (order.length !== cur.length) return;
-            var sorted = order.slice().sort(function(a, b) { return a - b; });
-            for (var k = 0; k < sorted.length; k++) {
-                if (sorted[k] !== k) return;
-            }
 
             var next = order.map(function(i) { return cur[i]; });
             $(HOME_POSTERS_INPUT).val(JSON.stringify(next));
 
-            // 延后到本次拖拽完全结束后再重绘，避免与 jQuery UI 内部清理冲突
             setTimeout(function() {
-                renderHomePosters(next);
+                renderConfig(next);
                 showToast(l10n.posterOrderChanged || '顺序已调整，请点击「保存海报配置」生效');
             }, 0);
         }
 
-        var posterSortableReady = false;
-        function initPosterSortable() {
-            if (posterSortableReady) return;
-            posterSortableReady = true;
+        $('#poster_config_list').sortable({
+            handle: '.poster-handle-badge',
+            items: '> .poster-config-item',
+            axis: 'y',
+            placeholder: 'poster-sortable-placeholder',
+            forcePlaceholderSize: true,
+            tolerance: 'pointer',
+            update: function() { applyPosterOrder($(this)); }
+        });
 
-            $('#poster_config_list').sortable({
-                handle: '.poster-drag-handle',
-                items: '> .poster-config-item',
-                axis: 'y',
-                placeholder: 'poster-sortable-placeholder',
-                forcePlaceholderSize: true,
-                tolerance: 'pointer',
-                update: function() { applyPosterOrder($(this), '.poster-config-item'); }
-            });
-        }
-
-        initPosterSortable();
-        renderHomePosters(getPostersArray());
+        renderConfig(getPostersArray());
     })();
 
     // =============================================
-    // 分类/平台列表编辑（分类设置）
-    // 顶部输入 + 添加按钮，下方竖排列表：左侧拖拽手柄，右侧编辑 / 删除
-    // 仅修改当前页面状态与隐藏域，所有更改必须点击「保存」后才生效
+    // 「分类设置」Tab 双卡片编辑与全选
     // =============================================
     (function() {
         var $editors = $('.ae-cat-editor');
@@ -765,7 +1017,6 @@ jQuery(document).ready(function($) {
         var MAX_ITEMS = 50;
         var MAX_LEN = 30;
 
-        // 清洗名称：去掉换行与逗号（分类名以逗号拼接存储，含逗号会破坏数据）
         function cleanName(raw) {
             return String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').replace(/[,，]/g, '').trim();
         }
@@ -776,11 +1027,15 @@ jQuery(document).ready(function($) {
             return values;
         }
 
-        // 把当前列表顺序写回隐藏域，并切换空状态（不提交则不生效）
         function sync($editor) {
             var values = getValues($editor);
             $editor.find('.ae-cat-value').val(values.join('\n'));
             $editor.find('.ae-cat-list').toggleClass('has-items', values.length > 0);
+
+            // 更新分类数量统计
+            if ($editor.find('input[name="filter_categories"]').length) {
+                $('#ae-filter-cat-text').text('共 ' + values.length + ' 个分类');
+            }
         }
 
         function exists($editor, name, $except) {
@@ -792,18 +1047,63 @@ jQuery(document).ready(function($) {
             return found;
         }
 
-        function buildItem(name) {
+        function getItemIconSvg(name, isPlatform) {
+            var n = name.toLowerCase();
+            if (isPlatform) {
+                if (n.indexOf('androidtv') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="12" rx="3" stroke="#52C41A" stroke-width="1.8"/><circle cx="8" cy="12" r="1" fill="#52C41A"/><circle cx="16" cy="12" r="1" fill="#52C41A"/><path d="M10 18l-1 3m5-3l1 3" stroke="#52C41A" stroke-width="1.8" stroke-linecap="round"/></svg>';
+                } else if (n.indexOf('android') !== -1 || n.indexOf('安卓') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 8.5a4 4 0 018 0v2H8v-2zm-1.5-2L5 5m12.5 1.5L19 5M7 12h10v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6z" fill="#52C41A"/><circle cx="10" cy="8" r="0.8" fill="#fff"/><circle cx="14" cy="8" r="0.8" fill="#fff"/></svg>';
+                } else if (n === 'ios') {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.5 4c-.5.6-1.3 1-2 1-.1-.7.3-1.5.8-2 .5-.5 1.3-.9 1.9-.9.1.7-.2 1.4-.7 1.9zm1.7 5.2c-.1 0-1.8 1-1.8 3.1s2.2 2.9 2.2 2.9c-.3 1-1.1 2.3-2 2.3-.7 0-1.2-.4-2-.4s-1.3.4-2 .4c-.9 0-1.8-1.3-2.3-2.6-.9-2.3-.2-5.1 1.7-5.1 1 0 1.7.6 2.3.6.5 0 1.4-.7 2.5-.6.5 0 1.9.1 2.7 1.2-.1.1-1.3.7-1.3 2.2z" fill="#262626"/></svg>';
+                } else if (n.indexOf('ipad') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5.5" y="4" width="13" height="16" rx="2" stroke="#1677FF" stroke-width="1.8"/><circle cx="12" cy="17.5" r="0.8" fill="#1677FF"/></svg>';
+                } else if (n.indexOf('tvos') !== -1 || n.indexOf('appletv') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><rect x="5" y="7" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.8"/><path d="M9 12h2.5m1.5-1.5l2 3m0-3l-2 3" stroke="#FA8C16" stroke-width="1.5" stroke-linecap="round"/></svg>';
+                } else if (n.indexOf('mac') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="#1677FF" stroke-width="1.8"/><path d="M9 19h6m-3-3v3" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/></svg>';
+                } else if (n.indexOf('win') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M5 5.5l5.5-.8v6.3H5V5.5zm6.5-1l7-1v7.3h-7V4.5zM5 12h5.5v6.3L5 17.5V12zm6.5 0h7v7.3l-7-1V12z" fill="#0078D4"/></svg>';
+                }
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><rect x="6" y="5" width="12" height="14" rx="2" stroke="#2F54EB" stroke-width="1.8"/><circle cx="12" cy="16" r="1" fill="#2F54EB"/></svg>';
+            }
+
+            // 分类图标
+            if (n.indexOf('ai') !== -1 || n.indexOf('agent') !== -1 || n.indexOf('智能') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 4v2m-5 4h10a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2zm-3 4H3m18 0h-1m-11 1v1m6-1v1" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="13.5" r="1" fill="#1677FF"/><circle cx="14.5" cy="13.5" r="1" fill="#1677FF"/></svg>';
+            } else if (n.indexOf('emby') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 6.5l10 5.5-10 5.5V6.5z" fill="#52C41A"/></svg>';
+            } else if (n.indexOf('jellyfin') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4l7 5-2.5 9.5h-9L5 9l7-5z" fill="#722ED1"/><path d="M12 8l3.5 2.5-1.5 5h-4L8.5 10.5 12 8z" fill="#D3ADF7"/></svg>';
+            } else if (n.indexOf('plex') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><path d="M9 7l5 5-5 5h3l5-5-5-5H9z" fill="#FA8C16"/></svg>';
+            } else if (n.indexOf('audio') !== -1 || n.indexOf('book') !== -1 || n.indexOf('书') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5 6.5A2.5 2.5 0 017.5 4H19v14H7.5A2.5 2.5 0 005 20.5V6.5z" stroke="#FA541C" stroke-width="1.8" stroke-linecap="round"/><path d="M5 18a2.5 2.5 0 012.5-2.5H19" stroke="#FA541C" stroke-width="1.8"/></svg>';
+            } else if (n.indexOf('navi') !== -1 || n.indexOf('music') !== -1 || n.indexOf('音') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 17a2 2 0 100-4 2 2 0 000 4zm0 0V7l8-2v8m-8-4l8-2" stroke="#1890FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="13" r="2" fill="#1890FF"/></svg>';
+            } else if (n.indexOf('iptv') !== -1 || n.indexOf('tv') !== -1 || n.indexOf('视') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="7" width="16" height="12" rx="2" stroke="#EB2F96" stroke-width="1.8"/><path d="M9 4l3 3 3-3m-7 8h6" stroke="#EB2F96" stroke-width="1.8" stroke-linecap="round"/></svg>';
+            } else if (n.indexOf('工') !== -1 || n.indexOf('tool') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M12 4l7 4-7 4-7-4 7-4zm-7 5.5l7 4v6.5l-7-4V9.5zm14 0l-7 4v6.5l7-4V9.5z" fill="#595959"/></svg>';
+            } else if (n.indexOf('代理') !== -1 || n.indexOf('proxy') !== -1 || n.indexOf('clash') !== -1) {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
+            }
+            return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M6 6h6l7 7-6 6-7-7V6z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9.5" cy="9.5" r="1.5" fill="#2F54EB"/></svg>';
+        }
+
+        function buildItem(name, isPlatform) {
+            var iconHtml = '<span class="ae-item-icon">' + getItemIconSvg(name, isPlatform) + '</span>';
             return $('<li class="ae-cat-item"></li>')
                 .attr('data-origin', name)
-                .append('<span class="ae-cat-drag dashicons dashicons-menu" title="' + escAttr(l10n.dragToSort || '拖拽排序') + '"></span>')
+                .append('<span class="ae-cat-drag" title="' + escAttr(l10n.dragToSort || '拖拽排序') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>')
+                .append(iconHtml)
                 .append($('<span class="ae-cat-name"></span>').text(name))
                 .append('<span class="ae-cat-actions">' +
-                    '<button type="button" class="ae-cat-edit" title="' + escAttr(l10n.editBtn || '修改') + '"><span class="dashicons dashicons-edit"></span></button>' +
-                    '<button type="button" class="ae-cat-remove" title="' + escAttr(l10n.deleteBtn || '删除') + '"><span class="dashicons dashicons-trash"></span></button>' +
+                    '<button type="button" class="ae-cat-action-btn ae-cat-edit" title="' + escAttr(l10n.editBtn || '修改') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>' +
+                    '<button type="button" class="ae-cat-action-btn ae-cat-remove" title="' + escAttr(l10n.deleteBtn || '删除') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>' +
                     '</span>');
         }
 
-        // 返回值：'added' 成功 / 'duplicate' 同名 / 'invalid' 超长或超量 / 'empty' 空输入
         function addItem($editor, rawName) {
             var name = cleanName(rawName);
             if (!name) return 'empty';
@@ -821,12 +1121,12 @@ jQuery(document).ready(function($) {
                 return 'invalid';
             }
 
-            $editor.find('.ae-cat-list').append(buildItem(name));
+            var isPlatform = $editor.find('input[name="platform_categories"]').length > 0;
+            $editor.find('.ae-cat-list').append(buildItem(name, isPlatform));
             sync($editor);
             return 'added';
         }
 
-        // 拖拽排序：按住左侧手柄拖动，顺序写入隐藏域，保存后同步到前端筛选栏
         $editors.each(function() {
             var $editor = $(this);
             $editor.find('.ae-cat-list').sortable({
@@ -840,7 +1140,6 @@ jQuery(document).ready(function($) {
             });
         });
 
-        // 顶部添加：点「添加」按钮
         $editors.on('click', '.ae-cat-add-btn', function() {
             var $editor = $(this).closest('.ae-cat-editor');
             var $input = $editor.find('.ae-cat-add-input');
@@ -848,7 +1147,6 @@ jQuery(document).ready(function($) {
             $input.focus();
         });
 
-        // 顶部添加：输入框回车
         $editors.on('keydown', '.ae-cat-add-input', function(e) {
             if (e.key !== 'Enter') return;
             e.preventDefault();
@@ -856,7 +1154,6 @@ jQuery(document).ready(function($) {
             if (addItem($editor, $(this).val()) !== 'invalid') $(this).val('');
         });
 
-        // 删除：复用通用二次确认弹窗，确认后仅修改页面状态
         $editors.on('click', '.ae-cat-remove', function(e) {
             e.preventDefault();
             var $item = $(this).closest('.ae-cat-item');
@@ -880,7 +1177,6 @@ jQuery(document).ready(function($) {
             });
         });
 
-        // 行内就地改名：点铅笔按钮进入编辑（Enter 确认 / Esc 取消，仅改页面状态）
         function startEdit($item) {
             if (!$item.length || $item.hasClass('is-editing')) return;
 
@@ -929,10 +1225,9 @@ jQuery(document).ready(function($) {
             startEdit($(this).closest('.ae-cat-item'));
         });
 
-        // 提交前：校验至少保留一项，并收集「老名→新名」映射供后端自动迁移
+        // 收集改名映射提交
         $editors.each(function() {
             var $editor = $(this);
-
             $editor.closest('form').on('submit', function(e) {
                 if (getValues($editor).length === 0) {
                     e.preventDefault();

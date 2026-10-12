@@ -3,7 +3,7 @@
  * Plugin Name: 应用页面插件
  * Plugin URI: https://github.com/Jacky088/apps_exhibition
  * Description: 推荐多个应用，支持后台管理、多端自适应、分类筛选、多下载按钮。
- * Version: 2.1.0
+ * Version: 3.0.0
  * Requires at least: 5.6
  * Requires PHP: 7.4
  * Author: 木木
@@ -27,13 +27,13 @@ if ( ! defined( 'APPS_EXHIBITION_FILE' ) ) {
 
 final class Apps_Exhibition {
 
-    const VERSION = '2.1.0';
+    const VERSION = '3.0.0';
 
     /**
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
      * 以便已安装的站点在升级插件后自动执行 dbDelta 与迁移逻辑。
      */
-    const DB_VERSION = '1.0.1';
+    const DB_VERSION = '1.0.2';
 
     const DB_VERSION_OPTION = 'apps_exhibition_db_version';
 
@@ -143,6 +143,12 @@ final class Apps_Exhibition {
             return;
         }
 
+        global $wpdb;
+        $col_check = $wpdb->get_results( "SHOW COLUMNS FROM {$this->table_name} LIKE 'app_badge'" );
+        if ( empty( $col_check ) ) {
+            $wpdb->query( "ALTER TABLE {$this->table_name} ADD app_badge varchar(50) NOT NULL DEFAULT '' AFTER app_name" );
+        }
+
         $this->install_schema();
         $this->install_default_options();
         $this->migrate_posters_option();
@@ -202,6 +208,7 @@ final class Apps_Exhibition {
         $sql = "CREATE TABLE {$this->table_name} (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
             app_name varchar(100) NOT NULL,
+            app_badge varchar(50) NOT NULL DEFAULT '',
             app_description text NOT NULL,
             app_icon varchar(255) NOT NULL,
             app_platforms varchar(255) NOT NULL,
@@ -385,6 +392,90 @@ final class Apps_Exhibition {
     public static function clear_frontend_cache() {
         delete_transient( 'apps_exhibition_all_data_v' . self::VERSION );
         delete_transient( 'apps_exhibition_sorted_v' . self::VERSION );
+    }
+
+    /**
+     * 获取分类对应的专属图标 HTML
+     */
+    public static function get_category_icon_html( $name ) {
+        $n = strtolower( trim( (string) $name ) );
+        $svg = '';
+
+        if ( '__all__' === $n || '全部' === $n || 'all' === $n ) {
+            // 全部 / 四宫格图标 (蓝)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4 4h6.5v6.5H4V4zm9.5 0H20v6.5h-6.5V4zM4 13.5h6.5V20H4v-6.5zm9.5 0H20V20h-6.5v-6.5z" fill="#1677FF"/></svg>';
+        } elseif ( false !== strpos( $n, 'ai' ) || false !== strpos( $n, 'agent' ) || false !== strpos( $n, '智能' ) ) {
+            // 机器人图标 (蓝)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 4v2m-5 4h10a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2zm-3 4H3m18 0h-1m-11 1v1m6-1v1" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="13.5" r="1" fill="#1677FF"/><circle cx="14.5" cy="13.5" r="1" fill="#1677FF"/></svg>';
+        } elseif ( false !== strpos( $n, 'emby' ) ) {
+            // Emby 绿色播放
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 6.5l10 5.5-10 5.5V6.5z" fill="#52C41A"/></svg>';
+        } elseif ( false !== strpos( $n, 'jellyfin' ) ) {
+            // Jellyfin 紫色多面体
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4l7 5-2.5 9.5h-9L5 9l7-5z" fill="#722ED1"/><path d="M12 8l3.5 2.5-1.5 5h-4L8.5 10.5 12 8z" fill="#D3ADF7"/></svg>';
+        } elseif ( false !== strpos( $n, 'plex' ) ) {
+            // Plex 黑色底+黄色箭头
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><path d="M9 7l5 5-5 5h3l5-5-5-5H9z" fill="#FA8C16"/></svg>';
+        } elseif ( false !== strpos( $n, 'audio' ) || false !== strpos( $n, 'book' ) || false !== strpos( $n, '书' ) ) {
+            // Audiobook 橙色书本
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5 6.5A2.5 2.5 0 017.5 4H19v14H7.5A2.5 2.5 0 005 20.5V6.5z" stroke="#FA541C" stroke-width="1.8" stroke-linecap="round"/><path d="M5 18a2.5 2.5 0 012.5-2.5H19" stroke="#FA541C" stroke-width="1.8"/></svg>';
+        } elseif ( false !== strpos( $n, 'navi' ) || false !== strpos( $n, 'music' ) || false !== strpos( $n, '音' ) ) {
+            // Navidrome 蓝色音符/波形
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 17a2 2 0 100-4 2 2 0 000 4zm0 0V7l8-2v8m-8-4l8-2" stroke="#1890FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="13" r="2" fill="#1890FF"/></svg>';
+        } elseif ( false !== strpos( $n, 'iptv' ) || false !== strpos( $n, 'tv' ) || false !== strpos( $n, '视' ) ) {
+            // IPTV 粉色电视
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="7" width="16" height="12" rx="2" stroke="#EB2F96" stroke-width="1.8"/><path d="M9 4l3 3 3-3m-7 8h6" stroke="#EB2F96" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        } elseif ( false !== strpos( $n, '工' ) || false !== strpos( $n, 'tool' ) ) {
+            // 工具 立方体
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M12 4l7 4-7 4-7-4 7-4zm-7 5.5l7 4v6.5l-7-4V9.5zm14 0l-7 4v6.5l7-4V9.5z" fill="#595959"/></svg>';
+        } elseif ( false !== strpos( $n, '代理' ) || false !== strpos( $n, 'proxy' ) || false !== strpos( $n, 'clash' ) ) {
+            // 代理 蓝色网络/猫
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
+        } else {
+            // 默认标签图标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M6 6h6l7 7-6 6-7-7V6z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9.5" cy="9.5" r="1.5" fill="#2F54EB"/></svg>';
+        }
+
+        return '<span class="ae-item-icon">' . $svg . '</span>';
+    }
+
+    /**
+     * 获取平台对应的专属图标 HTML
+     */
+    public static function get_platform_icon_html( $name ) {
+        $n = strtolower( trim( (string) $name ) );
+        $svg = '';
+
+        if ( 'androidtv' === $n || false !== strpos( $n, 'androidtv' ) || false !== strpos( $n, 'android tv' ) ) {
+            // AndroidTV 绿色电视
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="12" rx="3" stroke="#52C41A" stroke-width="1.8"/><circle cx="8" cy="12" r="1" fill="#52C41A"/><circle cx="16" cy="12" r="1" fill="#52C41A"/><path d="M10 18l-1 3m5-3l1 3" stroke="#52C41A" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        } elseif ( 'android' === $n || false !== strpos( $n, 'android' ) || false !== strpos( $n, '安卓' ) ) {
+            // Android 绿色小人
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 8.5a4 4 0 018 0v2H8v-2zm-1.5-2L5 5m12.5 1.5L19 5M7 12h10v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6z" fill="#52C41A"/><circle cx="10" cy="8" r="0.8" fill="#fff"/><circle cx="14" cy="8" r="0.8" fill="#fff"/></svg>';
+        } elseif ( 'ios' === $n ) {
+            // iOS 苹果
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.5 4c-.5.6-1.3 1-2 1-.1-.7.3-1.5.8-2 .5-.5 1.3-.9 1.9-.9.1.7-.2 1.4-.7 1.9zm1.7 5.2c-.1 0-1.8 1-1.8 3.1s2.2 2.9 2.2 2.9c-.3 1-1.1 2.3-2 2.3-.7 0-1.2-.4-2-.4s-1.3.4-2 .4c-.9 0-1.8-1.3-2.3-2.6-.9-2.3-.2-5.1 1.7-5.1 1 0 1.7.6 2.3.6.5 0 1.4-.7 2.5-.6.5 0 1.9.1 2.7 1.2-.1.1-1.3.7-1.3 2.2z" fill="#262626"/></svg>';
+        } elseif ( 'ipados' === $n || false !== strpos( $n, 'ipad' ) ) {
+            // iPadOS 平板
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5.5" y="4" width="13" height="16" rx="2" stroke="#1677FF" stroke-width="1.8"/><circle cx="12" cy="17.5" r="0.8" fill="#1677FF"/></svg>';
+        } elseif ( 'tvos' === $n || false !== strpos( $n, 'appletv' ) ) {
+            // tvOS 黑色方块
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><rect x="5" y="7" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.8"/><path d="M9 12h2.5m1.5-1.5l2 3m0-3l-2 3" stroke="#FA8C16" stroke-width="1.5" stroke-linecap="round"/></svg>';
+        } elseif ( 'macos' === $n || false !== strpos( $n, 'mac' ) ) {
+            // macOS 蓝屏显示器
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="#1677FF" stroke-width="1.8"/><path d="M9 19h6m-3-3v3" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/></svg>';
+        } elseif ( 'windows' === $n || false !== strpos( $n, 'win' ) ) {
+            // Windows 四色/蓝格
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M5 5.5l5.5-.8v6.3H5V5.5zm6.5-1l7-1v7.3h-7V4.5zM5 12h5.5v6.3L5 17.5V12zm6.5 0h7v7.3l-7-1V12z" fill="#0078D4"/></svg>';
+        } elseif ( false !== strpos( $n, 'linux' ) ) {
+            // Linux
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><circle cx="12" cy="9" r="3.5" fill="#FAAD14"/><path d="M8 15c0-2 2-3.5 4-3.5s4 1.5 4 3.5v2H8v-2z" fill="#262626"/></svg>';
+        } else {
+            // 设备通用
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><rect x="6" y="5" width="12" height="14" rx="2" stroke="#2F54EB" stroke-width="1.8"/><circle cx="12" cy="16" r="1" fill="#2F54EB"/></svg>';
+        }
+
+        return '<span class="ae-item-icon">' . $svg . '</span>';
     }
 
     /**

@@ -182,6 +182,8 @@ function apps_exhibition_handle_form() {
         return false;
     }
 
+    $app_badge = sanitize_text_field( wp_unslash( $_POST['app_badge'] ?? '' ) );
+
     $app_description = sanitize_textarea_field( wp_unslash( $_POST['app_description'] ?? '' ) );
     if ( empty( $app_description ) ) {
         add_settings_error( 'apps_exhibition_messages', 'error', __( '应用描述不能为空。', 'apps-exhibition' ), 'error' );
@@ -255,13 +257,14 @@ function apps_exhibition_handle_form() {
 
     $data = [
         'app_name'            => $app_name,
+        'app_badge'           => $app_badge,
         'app_description'     => $app_description,
         'app_icon'            => $app_icon,
         'app_platforms'       => $app_platforms_str,
         'app_filter_category' => $app_filter_str,
         'app_downloads'       => wp_json_encode( $downloads ),
     ];
-    $formats = [ '%s', '%s', '%s', '%s', '%s', '%s' ];
+    $formats = [ '%s', '%s', '%s', '%s', '%s', '%s', '%s' ];
 
     // 后台「移除图标」按钮确认移除时记录的被移除 URL，保存成功后据此清理媒体库图片
     $removed_icon = isset( $_POST['removed_icon_url'] ) ? esc_url_raw( wp_unslash( $_POST['removed_icon_url'] ) ) : '';
