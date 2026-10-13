@@ -303,6 +303,44 @@ function apps_exhibition_handle_form() {
     return true;
 }
 
+/**
+ * 获取附带分页、筛选、搜索上下文的后台重定向参数
+ */
+function apps_exhibition_get_redirect_args( array $params = [], $source = null ) {
+    if ( null === $source ) {
+        $source = ( 'POST' === ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) ? $_POST : $_GET;
+    }
+
+    // paged 参数（兼容 redirect_paged 与 paged）
+    $paged_raw = $source['redirect_paged'] ?? ( $source['paged'] ?? null );
+    if ( ! empty( $paged_raw ) ) {
+        $paged = max( 1, intval( $paged_raw ) );
+        if ( $paged > 1 ) {
+            $params['paged'] = $paged;
+        }
+    }
+
+    // 分类参数（兼容 redirect_category 与 category）
+    $cat_raw = $source['redirect_category'] ?? ( $source['category'] ?? null );
+    if ( isset( $cat_raw ) && '' !== trim( (string) $cat_raw ) ) {
+        $params['category'] = sanitize_text_field( wp_unslash( $cat_raw ) );
+    }
+
+    // 每页条数
+    $page_size_raw = $source['redirect_page_size'] ?? ( $source['page_size'] ?? null );
+    if ( ! empty( $page_size_raw ) && '10' !== $page_size_raw ) {
+        $params['page_size'] = sanitize_text_field( wp_unslash( $page_size_raw ) );
+    }
+
+    // 搜索关键字（兼容 redirect_search 与 s）
+    $search_raw = $source['redirect_search'] ?? ( $source['s'] ?? null );
+    if ( isset( $search_raw ) && '' !== trim( (string) $search_raw ) ) {
+        $params['s'] = sanitize_text_field( wp_unslash( $search_raw ) );
+    }
+
+    return $params;
+}
+
 function apps_exhibition_handle_form_post() {
     if ( ! current_user_can( 'manage_options' ) ) {
         wp_die( __( '无权限访问', 'apps-exhibition' ) );
@@ -322,7 +360,14 @@ function apps_exhibition_handle_form_post() {
         }
         $msg_code = 'error';
     }
-    wp_safe_redirect( add_query_arg( 'message', $msg_code, $redirect_url ) );
+
+    $redirect_args = apps_exhibition_get_redirect_args( [ 'message' => $msg_code ] );
+    // 若是新增应用，则跳转到第1页；若是编辑现有应用，则保留所处分页
+    if ( $result === true && ( ! isset( $_POST['app_id'] ) || intval( $_POST['app_id'] ) <= 0 ) ) {
+        unset( $redirect_args['paged'] );
+    }
+
+    wp_safe_redirect( add_query_arg( $redirect_args, $redirect_url ) );
     exit;
 }
 
@@ -352,7 +397,8 @@ function apps_exhibition_handle_delete() {
     }
 
     $msg_code = ( $deleted === false ) ? 'delete_error' : 'deleted';
-    wp_safe_redirect( add_query_arg( 'message', $msg_code, admin_url( 'admin.php?page=apps-exhibition' ) ) );
+    $redirect_args = apps_exhibition_get_redirect_args( [ 'message' => $msg_code ] );
+    wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php?page=apps-exhibition' ) ) );
     exit;
 }
 
@@ -364,7 +410,8 @@ function apps_exhibition_handle_bulk_delete() {
 
     $ids = isset( $_POST['app_ids'] ) ? $_POST['app_ids'] : [];
     if ( ! is_array( $ids ) || empty( $ids ) ) {
-        wp_safe_redirect( add_query_arg( 'message', 'error', admin_url( 'admin.php?page=apps-exhibition' ) ) );
+        $redirect_args = apps_exhibition_get_redirect_args( [ 'message' => 'error' ] );
+        wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php?page=apps-exhibition' ) ) );
         exit;
     }
 
@@ -388,7 +435,8 @@ function apps_exhibition_handle_bulk_delete() {
         apps_exhibition_delete_orphan_attachments( $icon_urls );
     }
 
-    wp_safe_redirect( add_query_arg( 'message', 'deleted', admin_url( 'admin.php?page=apps-exhibition' ) ) );
+    $redirect_args = apps_exhibition_get_redirect_args( [ 'message' => 'deleted' ] );
+    wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php?page=apps-exhibition' ) ) );
     exit;
 }
 
@@ -419,7 +467,8 @@ function apps_exhibition_handle_bulk_move() {
     $valid_categories = Apps_Exhibition::get_instance()->get_filter_categories();
 
     $redirect = function ( $code ) {
-        wp_safe_redirect( add_query_arg( 'message', $code, admin_url( 'admin.php?page=apps-exhibition' ) ) );
+        $redirect_args = apps_exhibition_get_redirect_args( [ 'message' => $code ] );
+        wp_safe_redirect( add_query_arg( $redirect_args, admin_url( 'admin.php?page=apps-exhibition' ) ) );
         exit;
     };
 

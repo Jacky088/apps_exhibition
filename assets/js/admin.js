@@ -60,6 +60,10 @@ jQuery(document).ready(function($) {
         if (mode === 'edit' && data) {
             $title.text(l10n.editApp || '编辑应用');
             $('#ae-form-app-id').val(data.id);
+            $('#ae-form-redirect-paged').val(currentPage);
+            $('#ae-form-redirect-category').val(currentSortCategory);
+            $('#ae-form-redirect-page-size').val(pageSize);
+            $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
             $('#app_name').val(data.name);
             $('#app_badge').val(data.badge || '');
             $('#app_description').val(data.description);
@@ -91,6 +95,10 @@ jQuery(document).ready(function($) {
             }
         } else {
             $title.text(l10n.addApp || '添加应用');
+            $('#ae-form-redirect-paged').val(1);
+            $('#ae-form-redirect-category').val(currentSortCategory);
+            $('#ae-form-redirect-page-size').val(pageSize);
+            $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
         }
 
         $overlay.fadeIn(200);
@@ -240,8 +248,21 @@ jQuery(document).ready(function($) {
     // 应用单项删除确认
     $(document).on('click', '.ae-delete-btn', function(e) {
         e.preventDefault();
-        var href = $(this).attr('href');
+        var rawHref = $(this).attr('href');
         var name = $(this).closest('tr').attr('data-name') || '';
+
+        var targetHref = rawHref;
+        if (targetHref) {
+            try {
+                var delUrl = new URL(targetHref, window.location.href);
+                if (currentPage > 1) delUrl.searchParams.set('paged', currentPage);
+                if (currentSortCategory) delUrl.searchParams.set('category', currentSortCategory);
+                if (pageSize && pageSize !== 10 && pageSize !== '10') delUrl.searchParams.set('page_size', pageSize);
+                var s = $('#ae-search-input').val().trim();
+                if (s) delUrl.searchParams.set('s', s);
+                targetHref = delUrl.toString();
+            } catch (err) {}
+        }
 
         openConfirm({
             title: l10n.confirmDeleteAppTitle || '确认删除该应用？',
@@ -254,7 +275,7 @@ jQuery(document).ready(function($) {
             notice: l10n.confirmDeleteAppNotice || '温馨提示：此操作不可恢复；如需保留该应用，请点击「取消」。',
             okText: l10n.confirmDeleteBtn || '确认删除',
             onConfirm: function() {
-                if (href) { window.location.href = href; }
+                if (targetHref) { window.location.href = targetHref; }
             }
         });
     });
@@ -418,25 +439,110 @@ jQuery(document).ready(function($) {
             alert(l10n.needOneDownload || '请至少填写一个完整下载链接（URL和按钮文字）。');
             return false;
         }
+
+        var isEdit = parseInt($('#ae-form-app-id').val(), 10) > 0;
+        $('#ae-form-redirect-paged').val(isEdit ? currentPage : 1);
+        $('#ae-form-redirect-category').val(currentSortCategory);
+        $('#ae-form-redirect-page-size').val(pageSize);
+        $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
+
         return valid;
     });
 
     // =============================================
     // 应用列表：分页、搜索、排序与全选联动
     // =============================================
-    var currentPage = 1;
-    var pageSize = 10;
+    var urlParams = new URLSearchParams(window.location.search);
+    var initialCategory = urlParams.get('category') || $('#ae-category-filter').val() || '';
+    var initialPaged = parseInt(urlParams.get('paged'), 10);
+    if (isNaN(initialPaged) || initialPaged < 1) initialPaged = 1;
+    var initialPageSize = urlParams.get('page_size') || $('#ae-page-size-select').val() || '10';
+    var initialSearch = urlParams.get('s') || $('#ae-search-input').val().trim() || '';
+
+    var currentPage = initialPaged;
+    var pageSize = initialPageSize === 'all' ? 'all' : (parseInt(initialPageSize, 10) || 10);
+    var currentSortCategory = initialCategory;
     var sortColumn = '';
     var sortDirection = 'asc';
 
+    // 记录初始默认 DOM 顺序（按创建时间倒序）
+    $('#ae-sortable-body tr[data-id]').each(function(index) {
+        $(this).attr('data-default-order', index);
+    });
+
     function getVisibleRows() {
         return $('#ae-sortable-body tr[data-id]:not(.ae-category-hidden):not(.ae-search-hidden)');
+    }
+
+    function syncRedirectInputs() {
+        var searchVal = $('#ae-search-input').val().trim();
+        $('#ae-form-redirect-paged').val(currentPage);
+        $('#ae-form-redirect-category').val(currentSortCategory);
+        $('#ae-form-redirect-page-size').val(pageSize);
+        $('#ae-form-redirect-search').val(searchVal);
+
+        $('#ae-bulk-redirect-paged, #ae-move-redirect-paged').val(currentPage);
+        $('#ae-bulk-redirect-category, #ae-move-redirect-category').val(currentSortCategory);
+        $('#ae-bulk-redirect-page-size, #ae-move-redirect-page-size').val(pageSize);
+        $('#ae-bulk-redirect-search, #ae-move-redirect-search').val(searchVal);
+    }
+
+    function updateUrlState() {
+        if (!window.history || !window.history.replaceState) return;
+        var currentUrl = new URL(window.location.href);
+
+        if (currentPage > 1) {
+            currentUrl.searchParams.set('paged', currentPage);
+        } else {
+            currentUrl.searchParams.delete('paged');
+        }
+
+        if (currentSortCategory) {
+            currentUrl.searchParams.set('category', currentSortCategory);
+        } else {
+            currentUrl.searchParams.delete('category');
+        }
+
+        if (pageSize && pageSize !== 10 && pageSize !== '10') {
+            currentUrl.searchParams.set('page_size', pageSize);
+        } else {
+            currentUrl.searchParams.delete('page_size');
+        }
+
+        var searchVal = $('#ae-search-input').val().trim();
+        if (searchVal) {
+            currentUrl.searchParams.set('s', searchVal);
+        } else {
+            currentUrl.searchParams.delete('s');
+        }
+
+        window.history.replaceState({}, '', currentUrl.toString());
+        syncRedirectInputs();
+    }
+
+    function updateEmptyState(total) {
+        var $existing = $('#ae-sortable-body tr.ae-empty-filter-row');
+        if (total === 0) {
+            if (!$existing.length) {
+                $('#ae-sortable-body').append(
+                    '<tr class="ae-no-apps ae-empty-filter-row"><td colspan="8">' +
+                    (l10n.noResults || '未找到符合条件的应用。') +
+                    '</td></tr>'
+                );
+            } else {
+                $existing.show();
+            }
+        } else {
+            $existing.remove();
+        }
     }
 
     function renderPagination() {
         var $visibleRows = getVisibleRows();
         var total = $visibleRows.length;
         $('#ae-pagination-total').text('共 ' + total + ' 条');
+
+        updateEmptyState(total);
 
         if (pageSize === 'all' || pageSize >= total || total === 0) {
             $visibleRows.removeClass('ae-page-hidden');
@@ -466,6 +572,7 @@ jQuery(document).ready(function($) {
                     currentPage = page;
                     renderPagination();
                     updateBulkBtn();
+                    updateUrlState();
                 });
             })(p);
             $pageContainer.append($btn);
@@ -480,6 +587,7 @@ jQuery(document).ready(function($) {
             currentPage--;
             renderPagination();
             updateBulkBtn();
+            updateUrlState();
         }
     });
 
@@ -490,6 +598,7 @@ jQuery(document).ready(function($) {
             currentPage++;
             renderPagination();
             updateBulkBtn();
+            updateUrlState();
         }
     });
 
@@ -499,11 +608,11 @@ jQuery(document).ready(function($) {
         currentPage = 1;
         renderPagination();
         updateBulkBtn();
+        updateUrlState();
     });
 
-    // 搜索过滤联动
-    $('#ae-search-input').on('input', function() {
-        var keyword = $(this).val().trim().toLowerCase();
+    function applySearch(keyword) {
+        keyword = (keyword || '').toLowerCase();
         $('#ae-sortable-body tr[data-id]').each(function() {
             var name = ($(this).attr('data-name') || '').toLowerCase();
             var badge = ($(this).attr('data-badge') || '').toLowerCase();
@@ -520,14 +629,21 @@ jQuery(document).ready(function($) {
 
             $(this).toggleClass('ae-search-hidden', !match);
         });
+    }
+
+    // 搜索过滤联动
+    $('#ae-search-input').on('input', function() {
+        applySearch($(this).val().trim());
         currentPage = 1;
         renderPagination();
         updateBulkBtn();
+        updateUrlState();
     });
 
     // 重置搜索/筛选设置按钮
     $('#ae-filter-setting-btn').on('click', function() {
-        $('#ae-search-input').val('').trigger('input');
+        $('#ae-search-input').val('');
+        applySearch('');
         $('#ae-category-filter').val('').trigger('change');
         showToast('已重置搜索与筛选条件');
     });
@@ -675,6 +791,7 @@ jQuery(document).ready(function($) {
             notice: l10n.confirmBulkDeleteNotice || '温馨提示：此操作不可恢复；如需保留，请点击「取消」。',
             okText: l10n.confirmDeleteBtn || '确认删除',
             onConfirm: function() {
+                syncRedirectInputs();
                 $('#ae-bulk-form').submit();
             }
         });
@@ -727,14 +844,55 @@ jQuery(document).ready(function($) {
             alert(l10n.moveSelectTarget || '请选择目标分类。');
             return false;
         }
+        syncRedirectInputs();
         return confirm(l10n.moveConfirm || '确认移动所选应用的分类？');
     });
 
     // =============================================
-    // 按分类拖拽排序
+    // 按分类拖拽排序与分类筛选
     // =============================================
-    var currentSortCategory = '';
     var sortableInitialized = false;
+
+    function sortRowsByCategoryOrder(category) {
+        if (!category || !l10n.categoryOrders || !l10n.categoryOrders[category]) return;
+        var orderArray = l10n.categoryOrders[category];
+        if (!Array.isArray(orderArray) || orderArray.length === 0) return;
+
+        var orderMap = {};
+        for (var i = 0; i < orderArray.length; i++) {
+            orderMap[orderArray[i]] = i;
+        }
+
+        var $tbody = $('#ae-sortable-body');
+        var $rows = $tbody.find('tr[data-id]').get();
+
+        $rows.sort(function(a, b) {
+            var idA = parseInt($(a).attr('data-id'), 10);
+            var idB = parseInt($(b).attr('data-id'), 10);
+            var defA = parseInt($(a).attr('data-default-order'), 10) || 0;
+            var defB = parseInt($(b).attr('data-default-order'), 10) || 0;
+            var posA = (orderMap[idA] !== undefined) ? orderMap[idA] : (100000 + defA);
+            var posB = (orderMap[idB] !== undefined) ? orderMap[idB] : (100000 + defB);
+            return posA - posB;
+        });
+
+        $.each($rows, function(idx, item) {
+            $tbody.append(item);
+        });
+    }
+
+    function restoreDefaultOrder() {
+        var $tbody = $('#ae-sortable-body');
+        var $rows = $tbody.find('tr[data-id]').get();
+        $rows.sort(function(a, b) {
+            var defA = parseInt($(a).attr('data-default-order'), 10) || 0;
+            var defB = parseInt($(b).attr('data-default-order'), 10) || 0;
+            return defA - defB;
+        });
+        $.each($rows, function(idx, item) {
+            $tbody.append(item);
+        });
+    }
 
     function initSortable() {
         if (sortableInitialized) {
@@ -766,7 +924,13 @@ jQuery(document).ready(function($) {
                     category: currentSortCategory,
                     order: order
                 }, function(response) {
-                    showToast(response.success ? (l10n.sortSaved || '排序已保存') : (l10n.sortError || '排序保存失败'), !response.success);
+                    if (response.success) {
+                        if (!l10n.categoryOrders) l10n.categoryOrders = {};
+                        l10n.categoryOrders[currentSortCategory] = order.map(function(id) { return parseInt(id, 10); });
+                        showToast(l10n.sortSaved || '排序已保存');
+                    } else {
+                        showToast(l10n.sortError || '排序保存失败', true);
+                    }
                 }).fail(function() {
                     showToast(l10n.sortError || '排序保存失败', true);
                 });
@@ -775,8 +939,7 @@ jQuery(document).ready(function($) {
         sortableInitialized = true;
     }
 
-    $('#ae-category-filter').on('change', function() {
-        var category = $(this).val();
+    function applyCategoryFilter(category) {
         currentSortCategory = category;
 
         if (category === '') {
@@ -786,7 +949,7 @@ jQuery(document).ready(function($) {
             if (sortableInitialized) {
                 $('#ae-sortable-body').sortable('disable');
             }
-            renderPagination();
+            restoreDefaultOrder();
         } else {
             $('#ae-sortable-body tr[data-id]').each(function() {
                 var cats = ($(this).attr('data-filter-category') || '').split(',').map(function(c) { return c.trim(); });
@@ -795,18 +958,40 @@ jQuery(document).ready(function($) {
             $('#ae-apps-table').addClass('ae-sort-mode');
             $('#ae-sort-hint').show();
 
-            // 排序模式下展示该分类的所有项，便于跨页自由拖动
-            $('#ae-sortable-body tr[data-id]:not(.ae-category-hidden)').removeClass('ae-page-hidden');
+            // 保持分类内已保存的排序
+            sortRowsByCategoryOrder(category);
+
             initSortable();
             $('#ae-sortable-body').sortable('enable');
         }
+    }
+
+    $('#ae-category-filter').on('change', function() {
+        var category = $(this).val();
+        applyCategoryFilter(category);
+        currentPage = 1; // 用户主动切换分类时切换到第1页
+        renderPagination();
         updateBulkBtn();
+        updateUrlState();
     });
 
+    // 初始化表格状态
     if ($('#ae-sortable-body tr[data-id]').length > 0) {
-        initSortable();
-        $('#ae-sortable-body').sortable('disable');
+        if (initialSearch) {
+            applySearch(initialSearch);
+        }
+
+        if (initialCategory) {
+            $('#ae-category-filter').val(initialCategory);
+            applyCategoryFilter(initialCategory);
+        } else {
+            initSortable();
+            $('#ae-sortable-body').sortable('disable');
+        }
+
         renderPagination();
+        updateBulkBtn();
+        updateUrlState();
     }
 
     // =============================================

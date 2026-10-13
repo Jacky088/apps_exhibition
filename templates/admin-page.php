@@ -170,6 +170,17 @@ if ( isset( $_GET['message'] ) ) {
             }
         }
     }
+
+    // 获取当前页面上下文参数（分类筛选、分页码、每页条数、搜索词）
+    $selected_category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+    $initial_paged     = isset( $_GET['paged'] ) ? max( 1, intval( $_GET['paged'] ) ) : 1;
+    $initial_page_size = isset( $_GET['page_size'] ) ? sanitize_text_field( wp_unslash( $_GET['page_size'] ) ) : '10';
+    $initial_search    = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+
+    $all_dropdown_cats = array_unique( array_merge( $filter_categories, $extra_categories ) );
+    if ( $selected_category !== '' && ! in_array( $selected_category, $all_dropdown_cats, true ) ) {
+        $selected_category = '';
+    }
     ?>
 
     <!-- 应用管理主卡片 -->
@@ -203,19 +214,19 @@ if ( isset( $_GET['message'] ) ) {
                     <label for="ae-category-filter"><?php esc_html_e( '排序分类：', 'apps-exhibition' ); ?></label>
                     <div class="ae-select-wrapper ae-custom-select" id="ae-category-filter-custom">
                         <select id="ae-category-filter" style="display:none;">
-                            <option value=""><?php esc_html_e( '全部应用（不可排序）', 'apps-exhibition' ); ?></option>
+                            <option value="" <?php selected( $selected_category, '' ); ?>><?php esc_html_e( '全部应用（不可排序）', 'apps-exhibition' ); ?></option>
                             <?php foreach ( $filter_categories as $cat ) : ?>
-                                <option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
+                                <option value="<?php echo esc_attr( $cat ); ?>" <?php selected( $selected_category, $cat ); ?>><?php echo esc_html( $cat ); ?></option>
                             <?php endforeach; ?>
                             <?php foreach ( $extra_categories as $cat ) : ?>
-                                <option value="<?php echo esc_attr( $cat ); ?>"><?php echo esc_html( $cat ); ?></option>
+                                <option value="<?php echo esc_attr( $cat ); ?>" <?php selected( $selected_category, $cat ); ?>><?php echo esc_html( $cat ); ?></option>
                             <?php endforeach; ?>
                         </select>
                         <div class="ae-custom-select-trigger" tabindex="0">
                             <span class="ae-custom-select-selected-icon">
-                                <?php echo Apps_Exhibition::get_category_icon_html( '__all__' ); ?>
+                                <?php echo Apps_Exhibition::get_category_icon_html( $selected_category !== '' ? $selected_category : '__all__' ); ?>
                             </span>
-                            <span class="ae-custom-select-selected-text"><?php esc_html_e( '全部应用（不可排序）', 'apps-exhibition' ); ?></span>
+                            <span class="ae-custom-select-selected-text"><?php echo $selected_category !== '' ? esc_html( $selected_category ) : esc_html__( '全部应用（不可排序）', 'apps-exhibition' ); ?></span>
                             <span class="ae-custom-select-arrow">
                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <polyline points="6 9 12 15 18 9"></polyline>
@@ -223,14 +234,12 @@ if ( isset( $_GET['message'] ) ) {
                             </span>
                         </div>
                         <div class="ae-custom-select-menu">
-                            <div class="ae-custom-select-item is-selected" data-value="">
+                            <div class="ae-custom-select-item <?php echo $selected_category === '' ? 'is-selected' : ''; ?>" data-value="">
                                 <span class="ae-custom-option-icon"><?php echo Apps_Exhibition::get_category_icon_html( '__all__' ); ?></span>
                                 <span class="ae-custom-option-text"><?php esc_html_e( '全部应用（不可排序）', 'apps-exhibition' ); ?></span>
                             </div>
-                            <?php
-                            $all_dropdown_cats = array_unique( array_merge( $filter_categories, $extra_categories ) );
-                            foreach ( $all_dropdown_cats as $cat ) : ?>
-                                <div class="ae-custom-select-item" data-value="<?php echo esc_attr( $cat ); ?>">
+                            <?php foreach ( $all_dropdown_cats as $cat ) : ?>
+                                <div class="ae-custom-select-item <?php echo $selected_category === $cat ? 'is-selected' : ''; ?>" data-value="<?php echo esc_attr( $cat ); ?>">
                                     <span class="ae-custom-option-icon"><?php echo Apps_Exhibition::get_category_icon_html( $cat ); ?></span>
                                     <span class="ae-custom-option-text"><?php echo esc_html( $cat ); ?></span>
                                 </div>
@@ -248,7 +257,7 @@ if ( isset( $_GET['message'] ) ) {
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
                     </span>
-                    <input type="text" id="ae-search-input" placeholder="<?php esc_attr_e( '搜索应用名称、插件名称...', 'apps-exhibition' ); ?>" />
+                    <input type="text" id="ae-search-input" value="<?php echo esc_attr( $initial_search ); ?>" placeholder="<?php esc_attr_e( '搜索应用名称、插件名称...', 'apps-exhibition' ); ?>" />
                 </div>
                 <button type="button" class="ae-filter-setting-btn" id="ae-filter-setting-btn" title="<?php esc_attr_e( '重置搜索与筛选', 'apps-exhibition' ); ?>">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -275,12 +284,16 @@ if ( isset( $_GET['message'] ) ) {
                     <line x1="12" y1="8" x2="12.01" y2="8"></line>
                 </svg>
             </span>
-            <span><?php esc_html_e( '当前为排序模式，拖拽行可调整该分类下的前端显示顺序。不属于该分类的应用已自动隐藏。', 'apps-exhibition' ); ?></span>
+            <span><?php esc_html_e( '当前为分类视图，拖拽可调整该分类前端显示顺序；如需跨页自由拖拽，请将右下角每页条数切换为「全部显示」。', 'apps-exhibition' ); ?></span>
         </div>
 
         <!-- 批量操作提交表单 -->
         <form method="post" id="ae-bulk-form" action="<?php echo esc_url( admin_url( 'admin-post.php?action=apps_exhibition_bulk_delete' ) ); ?>">
             <?php wp_nonce_field( 'apps_exhibition_bulk_delete' ); ?>
+            <input type="hidden" name="redirect_paged" id="ae-bulk-redirect-paged" value="<?php echo esc_attr( $initial_paged ); ?>" />
+            <input type="hidden" name="redirect_category" id="ae-bulk-redirect-category" value="<?php echo esc_attr( $selected_category ); ?>" />
+            <input type="hidden" name="redirect_page_size" id="ae-bulk-redirect-page-size" value="<?php echo esc_attr( $initial_page_size ); ?>" />
+            <input type="hidden" name="redirect_search" id="ae-bulk-redirect-search" value="<?php echo esc_attr( $initial_search ); ?>" />
 
             <div class="ae-table-responsive">
                 <table class="ae-table ae-apps-table" id="ae-apps-table">
@@ -423,10 +436,10 @@ if ( isset( $_GET['message'] ) ) {
                 <span class="ae-pagination-total" id="ae-pagination-total"><?php echo sprintf( esc_html__( '共 %d 条', 'apps-exhibition' ), count( $apps ) ); ?></span>
                 <div class="ae-page-size-selector">
                     <select id="ae-page-size-select">
-                        <option value="10">10 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
-                        <option value="20">20 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
-                        <option value="50">50 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
-                        <option value="all"><?php esc_html_e( '全部显示', 'apps-exhibition' ); ?></option>
+                        <option value="10" <?php selected( $initial_page_size, '10' ); ?>>10 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
+                        <option value="20" <?php selected( $initial_page_size, '20' ); ?>>20 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
+                        <option value="50" <?php selected( $initial_page_size, '50' ); ?>>50 <?php esc_html_e( '条/页', 'apps-exhibition' ); ?></option>
+                        <option value="all" <?php selected( $initial_page_size, 'all' ); ?>><?php esc_html_e( '全部显示', 'apps-exhibition' ); ?></option>
                     </select>
                 </div>
                 <div class="ae-pagination-nav">
@@ -451,6 +464,10 @@ if ( isset( $_GET['message'] ) ) {
                 <form method="post" id="apps-exhibition-form" action="<?php echo esc_url( admin_url( 'admin-post.php?action=apps_exhibition_save' ) ); ?>">
                     <?php wp_nonce_field( 'apps_exhibition_form' ); ?>
                     <input type="hidden" name="app_id" id="ae-form-app-id" value="0" />
+                    <input type="hidden" name="redirect_paged" id="ae-form-redirect-paged" value="<?php echo esc_attr( $initial_paged ); ?>" />
+                    <input type="hidden" name="redirect_category" id="ae-form-redirect-category" value="<?php echo esc_attr( $selected_category ); ?>" />
+                    <input type="hidden" name="redirect_page_size" id="ae-form-redirect-page-size" value="<?php echo esc_attr( $initial_page_size ); ?>" />
+                    <input type="hidden" name="redirect_search" id="ae-form-redirect-search" value="<?php echo esc_attr( $initial_search ); ?>" />
 
                     <div class="ae-form-row">
                         <label for="app_name"><?php esc_html_e( '应用名称', 'apps-exhibition' ); ?> <span class="required">*</span></label>
@@ -596,6 +613,10 @@ if ( isset( $_GET['message'] ) ) {
                 <form method="post" id="ae-bulk-move-form" action="<?php echo esc_url( admin_url( 'admin-post.php?action=apps_exhibition_bulk_move' ) ); ?>">
                     <?php wp_nonce_field( 'apps_exhibition_bulk_move' ); ?>
                     <input type="hidden" name="app_ids" id="ae-move-app-ids" value="" />
+                    <input type="hidden" name="redirect_paged" id="ae-move-redirect-paged" value="<?php echo esc_attr( $initial_paged ); ?>" />
+                    <input type="hidden" name="redirect_category" id="ae-move-redirect-category" value="<?php echo esc_attr( $selected_category ); ?>" />
+                    <input type="hidden" name="redirect_page_size" id="ae-move-redirect-page-size" value="<?php echo esc_attr( $initial_page_size ); ?>" />
+                    <input type="hidden" name="redirect_search" id="ae-move-redirect-search" value="<?php echo esc_attr( $initial_search ); ?>" />
 
                     <div class="ae-form-row">
                         <label for="ae-move-source"><?php esc_html_e( '源分类（将被替换）', 'apps-exhibition' ); ?></label>

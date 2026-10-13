@@ -790,6 +790,8 @@ final class Apps_Exhibition {
         wp_localize_script( 'apps-exhibition-admin-script', 'appsExhibitionL10n', [
             'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
             'sortNonce'          => wp_create_nonce( 'apps_exhibition_sort_nonce' ),
+            'categoryOrders'     => get_option( 'apps_exhibition_category_order', [] ),
+            'noResults'          => __( '未找到符合条件的应用。', 'apps-exhibition' ),
             'fillRequired'       => __( '请填写所有必填项 (应用名称、描述、图标)。', 'apps-exhibition' ),
             'selectPlatform'     => __( '请至少选择一个平台分类。', 'apps-exhibition' ),
             'selectFilter'       => __( '请至少选择一个筛选分类。', 'apps-exhibition' ),
