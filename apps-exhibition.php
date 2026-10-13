@@ -33,7 +33,7 @@ final class Apps_Exhibition {
      * 数据表结构版本。修改建表 SQL 或需要执行一次性数据迁移时必须递增此值，
      * 以便已安装的站点在升级插件后自动执行 dbDelta 与迁移逻辑。
      */
-    const DB_VERSION = '1.0.2';
+    const DB_VERSION = '1.0.3';
 
     const DB_VERSION_OPTION = 'apps_exhibition_db_version';
 
@@ -62,7 +62,7 @@ final class Apps_Exhibition {
     private $plugin_path;
     private $plugin_url;
     private $table_name;
-    private $default_platforms = [ 'Android', 'AndroidTV', 'iOS', 'iPadOS', 'tvOS', 'macOS', 'Windows' ];
+    private $default_platforms = [ 'Android', 'AndroidTV', 'iOS', 'iPadOS', 'tvOS', 'macOS', 'Windows', '鸿蒙系统' ];
 
     public static function get_instance() {
         if ( null === self::$instance ) {
@@ -231,6 +231,20 @@ final class Apps_Exhibition {
         $platforms_option = get_option( 'apps_exhibition_platform_categories' );
         if ( ! is_array( $platforms_option ) || empty( $platforms_option ) ) {
             update_option( 'apps_exhibition_platform_categories', $this->default_platforms );
+        } else {
+            // 兼容已有安装：若平台列表中尚未包含鸿蒙系统，自动追加
+            $has_harmony = false;
+            foreach ( $platforms_option as $p ) {
+                $lp = strtolower( (string) $p );
+                if ( false !== strpos( $lp, '鸿蒙' ) || false !== strpos( $lp, 'harmony' ) || false !== strpos( $lp, 'hos' ) ) {
+                    $has_harmony = true;
+                    break;
+                }
+            }
+            if ( ! $has_harmony ) {
+                $platforms_option[] = '鸿蒙系统';
+                update_option( 'apps_exhibition_platform_categories', $platforms_option );
+            }
         }
 
         // 初始化分类排序 option
@@ -395,6 +409,14 @@ final class Apps_Exhibition {
     }
 
     /**
+     * 获取分类与平台新增时的通用默认图标 SVG。
+     * 当用户添加未预置专属图标的新分类或新平台时，统一使用此图标以保证视觉样式一致。
+     */
+    public static function get_default_item_icon_svg() {
+        return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M12 4.5l7 3.5-7 3.5-7-3.5 7-3.5z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round" fill="#2F54EB" fill-opacity="0.15"/><path d="M5 11.5l7 3.5 7-3.5" stroke="#2F54EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15.5l7 3.5 7-3.5" stroke="#2F54EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    /**
      * 获取分类对应的专属图标 HTML
      */
     public static function get_category_icon_html( $name ) {
@@ -432,8 +454,8 @@ final class Apps_Exhibition {
             // 代理 蓝色网络/猫
             $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
         } else {
-            // 默认标签图标
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M6 6h6l7 7-6 6-7-7V6z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9.5" cy="9.5" r="1.5" fill="#2F54EB"/></svg>';
+            // 统一默认图标（未预置专属图标的新增分类）
+            $svg = self::get_default_item_icon_svg();
         }
 
         return '<span class="ae-item-icon">' . $svg . '</span>';
@@ -470,9 +492,12 @@ final class Apps_Exhibition {
         } elseif ( false !== strpos( $n, 'linux' ) ) {
             // Linux
             $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><circle cx="12" cy="9" r="3.5" fill="#FAAD14"/><path d="M8 15c0-2 2-3.5 4-3.5s4 1.5 4 3.5v2H8v-2z" fill="#262626"/></svg>';
+        } elseif ( false !== strpos( $n, '鸿蒙' ) || false !== strpos( $n, 'harmony' ) || false !== strpos( $n, 'hos' ) ) {
+            // 鸿蒙系统 (HarmonyOS)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2"/><path d="M6 16.5h12" stroke="#0A59F7" stroke-width="2" stroke-linecap="round"/></svg>';
         } else {
-            // 设备通用
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><rect x="6" y="5" width="12" height="14" rx="2" stroke="#2F54EB" stroke-width="1.8"/><circle cx="12" cy="16" r="1" fill="#2F54EB"/></svg>';
+            // 统一默认图标（未预置专属图标的新增平台）
+            $svg = self::get_default_item_icon_svg();
         }
 
         return '<span class="ae-item-icon">' . $svg . '</span>';
@@ -873,6 +898,8 @@ final class Apps_Exhibition {
             'moveSelectTarget'   => __( '请选择目标分类。', 'apps-exhibition' ),
             'moveConfirm'        => __( '确认移动所选应用的分类？此操作将立即生效。', 'apps-exhibition' ),
             // 分类设置 - 标签输入
+            'tagInputEmpty'           => __( '请输入名称后再添加。', 'apps-exhibition' ),
+            'tagAdded'                => __( '已添加「%s」，点击下方保存后生效。', 'apps-exhibition' ),
             'tagTooLong'              => sprintf( __( '单项名称不能超过 %d 个字符。', 'apps-exhibition' ), 30 ),
             'tagMax'                  => sprintf( __( '最多只能添加 %d 项。', 'apps-exhibition' ), 50 ),
             'tagDuplicate'            => __( '「%s」已存在，不可添加。', 'apps-exhibition' ),

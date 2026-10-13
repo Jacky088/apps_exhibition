@@ -60,10 +60,10 @@ jQuery(document).ready(function($) {
         if (mode === 'edit' && data) {
             $title.text(l10n.editApp || '编辑应用');
             $('#ae-form-app-id').val(data.id);
-            $('#ae-form-redirect-paged').val(currentPage);
-            $('#ae-form-redirect-category').val(currentSortCategory);
-            $('#ae-form-redirect-page-size').val(pageSize);
-            $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
+            $('#ae-form-redirect-paged').val(typeof currentPage !== 'undefined' ? currentPage : 1);
+            $('#ae-form-redirect-category').val(typeof currentSortCategory !== 'undefined' ? currentSortCategory : '');
+            $('#ae-form-redirect-page-size').val(typeof pageSize !== 'undefined' ? pageSize : 10);
+            $('#ae-form-redirect-search').val(($('#ae-search-input').val() || '').trim());
             $('#app_name').val(data.name);
             $('#app_badge').val(data.badge || '');
             $('#app_description').val(data.description);
@@ -96,9 +96,9 @@ jQuery(document).ready(function($) {
         } else {
             $title.text(l10n.addApp || '添加应用');
             $('#ae-form-redirect-paged').val(1);
-            $('#ae-form-redirect-category').val(currentSortCategory);
-            $('#ae-form-redirect-page-size').val(pageSize);
-            $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
+            $('#ae-form-redirect-category').val(typeof currentSortCategory !== 'undefined' ? currentSortCategory : '');
+            $('#ae-form-redirect-page-size').val(typeof pageSize !== 'undefined' ? pageSize : 10);
+            $('#ae-form-redirect-search').val(($('#ae-search-input').val() || '').trim());
         }
 
         $overlay.fadeIn(200);
@@ -255,10 +255,10 @@ jQuery(document).ready(function($) {
         if (targetHref) {
             try {
                 var delUrl = new URL(targetHref, window.location.href);
-                if (currentPage > 1) delUrl.searchParams.set('paged', currentPage);
-                if (currentSortCategory) delUrl.searchParams.set('category', currentSortCategory);
-                if (pageSize && pageSize !== 10 && pageSize !== '10') delUrl.searchParams.set('page_size', pageSize);
-                var s = $('#ae-search-input').val().trim();
+                if (typeof currentPage !== 'undefined' && currentPage > 1) delUrl.searchParams.set('paged', currentPage);
+                if (typeof currentSortCategory !== 'undefined' && currentSortCategory) delUrl.searchParams.set('category', currentSortCategory);
+                if (typeof pageSize !== 'undefined' && pageSize && pageSize !== 10 && pageSize !== '10') delUrl.searchParams.set('page_size', pageSize);
+                var s = ($('#ae-search-input').val() || '').trim();
                 if (s) delUrl.searchParams.set('s', s);
                 targetHref = delUrl.toString();
             } catch (err) {}
@@ -441,10 +441,10 @@ jQuery(document).ready(function($) {
         }
 
         var isEdit = parseInt($('#ae-form-app-id').val(), 10) > 0;
-        $('#ae-form-redirect-paged').val(isEdit ? currentPage : 1);
-        $('#ae-form-redirect-category').val(currentSortCategory);
-        $('#ae-form-redirect-page-size').val(pageSize);
-        $('#ae-form-redirect-search').val($('#ae-search-input').val().trim());
+        $('#ae-form-redirect-paged').val(isEdit ? (typeof currentPage !== 'undefined' ? currentPage : 1) : 1);
+        $('#ae-form-redirect-category').val(typeof currentSortCategory !== 'undefined' ? currentSortCategory : '');
+        $('#ae-form-redirect-page-size').val(typeof pageSize !== 'undefined' ? pageSize : 10);
+        $('#ae-form-redirect-search').val(($('#ae-search-input').val() || '').trim());
 
         return valid;
     });
@@ -457,7 +457,7 @@ jQuery(document).ready(function($) {
     var initialPaged = parseInt(urlParams.get('paged'), 10);
     if (isNaN(initialPaged) || initialPaged < 1) initialPaged = 1;
     var initialPageSize = urlParams.get('page_size') || $('#ae-page-size-select').val() || '10';
-    var initialSearch = urlParams.get('s') || $('#ae-search-input').val().trim() || '';
+    var initialSearch = urlParams.get('s') || ($('#ae-search-input').length ? ($('#ae-search-input').val() || '').trim() : '') || '';
 
     var currentPage = initialPaged;
     var pageSize = initialPageSize === 'all' ? 'all' : (parseInt(initialPageSize, 10) || 10);
@@ -475,7 +475,7 @@ jQuery(document).ready(function($) {
     }
 
     function syncRedirectInputs() {
-        var searchVal = $('#ae-search-input').val().trim();
+        var searchVal = ($('#ae-search-input').val() || '').trim();
         $('#ae-form-redirect-paged').val(currentPage);
         $('#ae-form-redirect-category').val(currentSortCategory);
         $('#ae-form-redirect-page-size').val(pageSize);
@@ -509,7 +509,7 @@ jQuery(document).ready(function($) {
             currentUrl.searchParams.delete('page_size');
         }
 
-        var searchVal = $('#ae-search-input').val().trim();
+        var searchVal = ($('#ae-search-input').val() || '').trim();
         if (searchVal) {
             currentUrl.searchParams.set('s', searchVal);
         } else {
@@ -1202,13 +1202,19 @@ jQuery(document).ready(function($) {
         var MAX_ITEMS = 50;
         var MAX_LEN = 30;
 
+        // 统一默认图标（未预置专属图标的新增分类与平台共用，保证视觉统一）
+        var DEFAULT_ITEM_ICON_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M12 4.5l7 3.5-7 3.5-7-3.5 7-3.5z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round" fill="#2F54EB" fill-opacity="0.15"/><path d="M5 11.5l7 3.5 7-3.5" stroke="#2F54EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15.5l7 3.5 7-3.5" stroke="#2F54EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
         function cleanName(raw) {
             return String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').replace(/[,，]/g, '').trim();
         }
 
         function getValues($editor) {
             var values = [];
-            $editor.find('.ae-cat-name').each(function() { values.push($(this).text()); });
+            $editor.find('.ae-cat-name').each(function() {
+                var txt = cleanName($(this).text());
+                if (txt) values.push(txt);
+            });
             return values;
         }
 
@@ -1225,17 +1231,18 @@ jQuery(document).ready(function($) {
 
         function exists($editor, name, $except) {
             var found = false;
+            var target = name.toLowerCase();
             $editor.find('.ae-cat-name').each(function() {
                 if ($except && $except.is(this)) return;
-                if ($(this).text().toLowerCase() === name.toLowerCase()) { found = true; return false; }
+                if ($(this).text().trim().toLowerCase() === target) { found = true; return false; }
             });
             return found;
         }
 
         function getItemIconSvg(name, isPlatform) {
-            var n = name.toLowerCase();
+            var n = (name || '').toLowerCase();
             if (isPlatform) {
-                if (n.indexOf('androidtv') !== -1) {
+                if (n.indexOf('androidtv') !== -1 || n.indexOf('android tv') !== -1) {
                     return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="12" rx="3" stroke="#52C41A" stroke-width="1.8"/><circle cx="8" cy="12" r="1" fill="#52C41A"/><circle cx="16" cy="12" r="1" fill="#52C41A"/><path d="M10 18l-1 3m5-3l1 3" stroke="#52C41A" stroke-width="1.8" stroke-linecap="round"/></svg>';
                 } else if (n.indexOf('android') !== -1 || n.indexOf('安卓') !== -1) {
                     return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 8.5a4 4 0 018 0v2H8v-2zm-1.5-2L5 5m12.5 1.5L19 5M7 12h10v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6z" fill="#52C41A"/><circle cx="10" cy="8" r="0.8" fill="#fff"/><circle cx="14" cy="8" r="0.8" fill="#fff"/></svg>';
@@ -1249,12 +1256,19 @@ jQuery(document).ready(function($) {
                     return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="#1677FF" stroke-width="1.8"/><path d="M9 19h6m-3-3v3" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/></svg>';
                 } else if (n.indexOf('win') !== -1) {
                     return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M5 5.5l5.5-.8v6.3H5V5.5zm6.5-1l7-1v7.3h-7V4.5zM5 12h5.5v6.3L5 17.5V12zm6.5 0h7v7.3l-7-1V12z" fill="#0078D4"/></svg>';
+                } else if (n.indexOf('linux') !== -1) {
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><circle cx="12" cy="9" r="3.5" fill="#FAAD14"/><path d="M8 15c0-2 2-3.5 4-3.5s4 1.5 4 3.5v2H8v-2z" fill="#262626"/></svg>';
+                } else if (n.indexOf('鸿蒙') !== -1 || n.indexOf('harmony') !== -1 || n.indexOf('hos') !== -1) {
+                    // 鸿蒙系统 (HarmonyOS)
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2"/><path d="M6 16.5h12" stroke="#0A59F7" stroke-width="2" stroke-linecap="round"/></svg>';
                 }
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><rect x="6" y="5" width="12" height="14" rx="2" stroke="#2F54EB" stroke-width="1.8"/><circle cx="12" cy="16" r="1" fill="#2F54EB"/></svg>';
+                return DEFAULT_ITEM_ICON_SVG;
             }
 
             // 分类图标
-            if (n.indexOf('ai') !== -1 || n.indexOf('agent') !== -1 || n.indexOf('智能') !== -1) {
+            if (n === '__all__' || n === '全部' || n === 'all') {
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4 4h6.5v6.5H4V4zm9.5 0H20v6.5h-6.5V4zM4 13.5h6.5V20H4v-6.5zm9.5 0H20V20h-6.5v-6.5z" fill="#1677FF"/></svg>';
+            } else if (n.indexOf('ai') !== -1 || n.indexOf('agent') !== -1 || n.indexOf('智能') !== -1) {
                 return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 4v2m-5 4h10a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2zm-3 4H3m18 0h-1m-11 1v1m6-1v1" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="13.5" r="1" fill="#1677FF"/><circle cx="14.5" cy="13.5" r="1" fill="#1677FF"/></svg>';
             } else if (n.indexOf('emby') !== -1) {
                 return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 6.5l10 5.5-10 5.5V6.5z" fill="#52C41A"/></svg>';
@@ -1273,7 +1287,7 @@ jQuery(document).ready(function($) {
             } else if (n.indexOf('代理') !== -1 || n.indexOf('proxy') !== -1 || n.indexOf('clash') !== -1) {
                 return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
             }
-            return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F0F5FF"/><path d="M6 6h6l7 7-6 6-7-7V6z" stroke="#2F54EB" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9.5" cy="9.5" r="1.5" fill="#2F54EB"/></svg>';
+            return DEFAULT_ITEM_ICON_SVG;
         }
 
         function buildItem(name, isPlatform) {
@@ -1291,7 +1305,10 @@ jQuery(document).ready(function($) {
 
         function addItem($editor, rawName) {
             var name = cleanName(rawName);
-            if (!name) return 'empty';
+            if (!name) {
+                showToast(l10n.tagInputEmpty || '请输入名称后再添加。', true);
+                return 'empty';
+            }
 
             if (name.length > MAX_LEN) {
                 showToast((l10n.tagTooLong || '单项名称不能超过 %d 个字符。').replace('%d', MAX_LEN), true);
@@ -1309,6 +1326,7 @@ jQuery(document).ready(function($) {
             var isPlatform = $editor.find('input[name="platform_categories"]').length > 0;
             $editor.find('.ae-cat-list').append(buildItem(name, isPlatform));
             sync($editor);
+            showToast((l10n.tagAdded || '已添加「%s」，点击下方保存后生效。').replace('%s', name));
             return 'added';
         }
 
@@ -1325,21 +1343,30 @@ jQuery(document).ready(function($) {
             });
         });
 
-        $editors.on('click', '.ae-cat-add-btn', function() {
+        $(document).on('click', '.ae-cat-add-btn', function(e) {
+            e.preventDefault();
             var $editor = $(this).closest('.ae-cat-editor');
             var $input = $editor.find('.ae-cat-add-input');
-            if (addItem($editor, $input.val()) !== 'invalid') $input.val('');
+            var res = addItem($editor, $input.val());
+            if (res === 'added') {
+                $input.val('');
+            }
             $input.focus();
         });
 
-        $editors.on('keydown', '.ae-cat-add-input', function(e) {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            var $editor = $(this).closest('.ae-cat-editor');
-            if (addItem($editor, $(this).val()) !== 'invalid') $(this).val('');
+        $(document).on('keydown keypress', '.ae-cat-add-input', function(e) {
+            if (e.key === 'Enter' || e.keyCode === 13) {
+                e.preventDefault();
+                e.stopPropagation();
+                var $editor = $(this).closest('.ae-cat-editor');
+                var res = addItem($editor, $(this).val());
+                if (res === 'added') {
+                    $(this).val('');
+                }
+            }
         });
 
-        $editors.on('click', '.ae-cat-remove', function(e) {
+        $(document).on('click', '.ae-cat-remove', function(e) {
             e.preventDefault();
             var $item = $(this).closest('.ae-cat-item');
             var $editor = $item.closest('.ae-cat-editor');
@@ -1367,7 +1394,7 @@ jQuery(document).ready(function($) {
 
             var $editor = $item.closest('.ae-cat-editor');
             var $name = $item.find('.ae-cat-name');
-            var oldName = $name.text();
+            var oldName = cleanName($name.text());
             var $input = $('<input type="text" class="ae-cat-edit-input" />').val(oldName);
 
             $item.addClass('is-editing');
@@ -1388,6 +1415,8 @@ jQuery(document).ready(function($) {
                             showToast((l10n.tagDuplicateRename || '「%s」已存在，无法改为该名称。').replace('%s', newName), true);
                         } else {
                             $name.text(newName);
+                            var isPlat = $editor.find('input[name="platform_categories"]').length > 0;
+                            $item.find('.ae-item-icon').html(getItemIconSvg(newName, isPlat));
                             sync($editor);
                         }
                     }
@@ -1405,32 +1434,50 @@ jQuery(document).ready(function($) {
             $input.on('blur', function() { finish(true); });
         }
 
-        $editors.on('click', '.ae-cat-edit', function(e) {
+        $(document).on('click', '.ae-cat-edit', function(e) {
             e.preventDefault();
             startEdit($(this).closest('.ae-cat-item'));
         });
 
-        // 收集改名映射提交
-        $editors.each(function() {
-            var $editor = $(this);
-            $editor.closest('form').on('submit', function(e) {
-                if (getValues($editor).length === 0) {
-                    e.preventDefault();
-                    showToast(l10n.tagEmpty || '请至少保留一项后再保存。', true);
-                    return;
-                }
+        // 收集改名映射并执行表单提交前检查与自动添加
+        $(document).on('submit', '.ae-settings-card form', function(e) {
+            var $form = $(this);
+            var $editor = $form.find('.ae-cat-editor');
+            if (!$editor.length) return;
 
-                var renames = {};
-                $editor.find('.ae-cat-item').each(function() {
-                    var $item = $(this);
-                    var origin = $item.attr('data-origin') || '';
-                    var current = $item.find('.ae-cat-name').text();
-                    if (origin && current && origin !== current) {
-                        renames[origin] = current;
+            // 若输入框仍有未点击添加的名称，自动补充添加
+            var $addInput = $editor.find('.ae-cat-add-input');
+            var pending = cleanName($addInput.val());
+            if (pending) {
+                var res = addItem($editor, pending);
+                if (res === 'added') {
+                    $addInput.val('');
+                } else if (res === 'invalid' || res === 'duplicate') {
+                    if (getValues($editor).length === 0) {
+                        e.preventDefault();
+                        return;
                     }
-                });
-                $editor.find('.ae-cat-renames').val(JSON.stringify(renames));
+                }
+            }
+
+            if (getValues($editor).length === 0) {
+                e.preventDefault();
+                showToast(l10n.tagEmpty || '请至少保留一项后再保存。', true);
+                return;
+            }
+
+            sync($editor);
+
+            var renames = {};
+            $editor.find('.ae-cat-item').each(function() {
+                var $item = $(this);
+                var origin = $item.attr('data-origin') || '';
+                var current = cleanName($item.find('.ae-cat-name').text());
+                if (origin && current && origin !== current) {
+                    renames[origin] = current;
+                }
             });
+            $editor.find('.ae-cat-renames').val(JSON.stringify(renames));
         });
 
         $editors.each(function() { sync($(this)); });
