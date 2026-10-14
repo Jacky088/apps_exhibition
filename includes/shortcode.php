@@ -137,7 +137,7 @@ function apps_exhibition_shortcode() {
     ob_start();
     ?>
 
-    <div id="apps-exhibition-root" class="apps-exhibition-wrap">
+    <div id="apps-exhibition-root" class="apps-exhibition-wrap notoc no-toc ez-toc-ignore lwptoc-ignore rank-math-toc-ignore" data-toc-ignore="true" data-no-toc="true">
 
         <?php if ( ! empty( $home_posters ) ) : ?>
             <div class="home-posters-container swiper">
@@ -219,12 +219,12 @@ function apps_exhibition_shortcode() {
                     </div>
 
                     <div class="app-text-content">
-                        <h3 class="app-name">
+                        <div class="app-name notoc no-toc ez-toc-ignore lwptoc-ignore rank-math-toc-ignore">
                             <?php echo esc_html( $app['app_name'] ); ?>
                             <?php if ( ! empty( $app['app_badge'] ) ) : ?>
                                 <span class="app-badge"><?php echo esc_html( $app['app_badge'] ); ?></span>
                             <?php endif; ?>
-                        </h3>
+                        </div>
                         <div class="app-desc"><?php echo esc_html( $app['app_description'] ); ?></div>
                         <div class="app-platform-tags">
                             <?php foreach ($platforms as $plat): if(trim($plat)): ?>
