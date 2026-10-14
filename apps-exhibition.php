@@ -59,6 +59,8 @@ final class Apps_Exhibition {
     const MAX_POSTERS = 10;
 
     private static $instance = null;
+    private static $cached_category_icons = null;
+    private static $cached_platform_icons = null;
     private $plugin_path;
     private $plugin_url;
     private $table_name;
@@ -251,6 +253,19 @@ final class Apps_Exhibition {
         if ( false === get_option( 'apps_exhibition_category_order' ) ) {
             update_option( 'apps_exhibition_category_order', [] );
         }
+
+        // 初始化隐藏前台全部 option
+        if ( false === get_option( 'apps_exhibition_hide_all_category' ) ) {
+            update_option( 'apps_exhibition_hide_all_category', 0 );
+        }
+
+        // 初始化分类与平台自定义图标 option
+        if ( false === get_option( 'apps_exhibition_category_icons' ) ) {
+            update_option( 'apps_exhibition_category_icons', [] );
+        }
+        if ( false === get_option( 'apps_exhibition_platform_icons' ) ) {
+            update_option( 'apps_exhibition_platform_icons', [] );
+        }
     }
 
     /**
@@ -404,8 +419,41 @@ final class Apps_Exhibition {
     }
 
     public static function clear_frontend_cache() {
+        self::$cached_category_icons = null;
+        self::$cached_platform_icons = null;
         delete_transient( 'apps_exhibition_all_data_v' . self::VERSION );
         delete_transient( 'apps_exhibition_sorted_v' . self::VERSION );
+    }
+
+    public static function get_all_category_icons() {
+        if ( null === self::$cached_category_icons ) {
+            $icons = get_option( 'apps_exhibition_category_icons', [] );
+            self::$cached_category_icons = is_array( $icons ) ? $icons : [];
+        }
+        return self::$cached_category_icons;
+    }
+
+    public static function get_all_platform_icons() {
+        if ( null === self::$cached_platform_icons ) {
+            $icons = get_option( 'apps_exhibition_platform_icons', [] );
+            self::$cached_platform_icons = is_array( $icons ) ? $icons : [];
+        }
+        return self::$cached_platform_icons;
+    }
+
+    public function get_category_icons() {
+        return self::get_all_category_icons();
+    }
+
+    public function get_platform_icons() {
+        return self::get_all_platform_icons();
+    }
+
+    /**
+     * 判断是否开启了“隐藏前台全部”开关
+     */
+    public static function is_hide_all_category() {
+        return (bool) get_option( 'apps_exhibition_hide_all_category', 0 );
     }
 
     /**
@@ -420,39 +468,46 @@ final class Apps_Exhibition {
      * 获取分类对应的专属图标 HTML
      */
     public static function get_category_icon_html( $name ) {
-        $n = strtolower( trim( (string) $name ) );
+        $trim_name = trim( (string) $name );
+        $category_icons = self::get_all_category_icons();
+        if ( ! empty( $category_icons[ $trim_name ] ) ) {
+            $url = esc_url( $category_icons[ $trim_name ] );
+            return '<span class="ae-item-icon ae-item-icon-custom"><img src="' . $url . '" alt="' . esc_attr( $trim_name ) . '" class="ae-custom-icon-img" width="22" height="22" loading="lazy" decoding="async" /></span>';
+        }
+
+        $n = strtolower( $trim_name );
         $svg = '';
 
         if ( '__all__' === $n || '全部' === $n || 'all' === $n ) {
-            // 全部 / 四宫格图标 (蓝)
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4 4h6.5v6.5H4V4zm9.5 0H20v6.5h-6.5V4zM4 13.5h6.5V20H4v-6.5zm9.5 0H20V20h-6.5v-6.5z" fill="#1677FF"/></svg>';
+            // 全部 / 四宫格矩阵 (蓝)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4.5" y="4.5" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="13" y="4.5" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="4.5" y="13" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="13" y="13" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/></svg>';
         } elseif ( false !== strpos( $n, 'ai' ) || false !== strpos( $n, 'agent' ) || false !== strpos( $n, '智能' ) ) {
-            // 机器人图标 (蓝)
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 4v2m-5 4h10a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2zm-3 4H3m18 0h-1m-11 1v1m6-1v1" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="13.5" r="1" fill="#1677FF"/><circle cx="14.5" cy="13.5" r="1" fill="#1677FF"/></svg>';
+            // 机器人/AI 徽标 (蓝)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 3.8v2.2" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><rect x="5.5" y="6" width="13" height="11.5" rx="3.5" fill="#BAE0FF" fill-opacity="0.35" stroke="#1677FF" stroke-width="1.6"/><circle cx="9.5" cy="11.2" r="1.3" fill="#1677FF"/><circle cx="14.5" cy="11.2" r="1.3" fill="#1677FF"/><path d="M10 14.5c.6.5 1.4.7 2 .7s1.4-.2 2-.7" stroke="#1677FF" stroke-width="1.4" stroke-linecap="round"/><path d="M3.8 11.5H5.5M18.5 11.5H20.2" stroke="#1677FF" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } elseif ( false !== strpos( $n, 'emby' ) ) {
-            // Emby 绿色播放
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 6.5l10 5.5-10 5.5V6.5z" fill="#52C41A"/></svg>';
+            // Emby 绿色播放三角
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8.5 6.8c0-.7.8-1.1 1.4-.7l8.2 4.7c.6.4.6 1.3 0 1.6l-8.2 4.7c-.6.4-1.4 0-1.4-.7V6.8z" fill="#52C41A"/></svg>';
         } elseif ( false !== strpos( $n, 'jellyfin' ) ) {
-            // Jellyfin 紫色多面体
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4l7 5-2.5 9.5h-9L5 9l7-5z" fill="#722ED1"/><path d="M12 8l3.5 2.5-1.5 5h-4L8.5 10.5 12 8z" fill="#D3ADF7"/></svg>';
+            // Jellyfin 紫色多面体宝石
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4.5l6.5 4.5-2.5 9.5h-8L5.5 9 12 4.5z" fill="#722ED1"/><path d="M12 8.5l3.5 2.5-1.5 5h-4L8.5 11 12 8.5z" fill="#D3ADF7"/></svg>';
         } elseif ( false !== strpos( $n, 'plex' ) ) {
-            // Plex 黑色底+黄色箭头
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><path d="M9 7l5 5-5 5h3l5-5-5-5H9z" fill="#FA8C16"/></svg>';
+            // Plex 柔和金底 + 官方标志性双色斜角箭（统一浅色调，告别死黑突兀块）
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF7E6"/><rect x="5.5" y="6.5" width="2.2" height="11" rx="1.1" fill="#434343"/><path d="M9 6.5l5.5 5.5-5.5 5.5h3.2l5.5-5.5-5.5-5.5H9z" fill="#FA8C16"/></svg>';
         } elseif ( false !== strpos( $n, 'audio' ) || false !== strpos( $n, 'book' ) || false !== strpos( $n, '书' ) ) {
-            // Audiobook 橙色书本
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5 6.5A2.5 2.5 0 017.5 4H19v14H7.5A2.5 2.5 0 005 20.5V6.5z" stroke="#FA541C" stroke-width="1.8" stroke-linecap="round"/><path d="M5 18a2.5 2.5 0 012.5-2.5H19" stroke="#FA541C" stroke-width="1.8"/></svg>';
+            // Audiobook 暖橙耳机听书（书本与耳机平衡感）
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5.5 17.5A2 2 0 017.5 16H18V6.5A1.5 1.5 0 0016.5 5h-9A2 2 0 005.5 7v10.5z" fill="#FFBB96" fill-opacity="0.35" stroke="#FA541C" stroke-width="1.6"/><path d="M5.5 17.5A2 2 0 017.5 16H18" stroke="#FA541C" stroke-width="1.6"/><path d="M8.5 10.5a3.5 3.5 0 017 0" stroke="#FA541C" stroke-width="1.6" stroke-linecap="round"/><rect x="7" y="10" width="2" height="3.5" rx="1" fill="#FA541C"/><rect x="15" y="10" width="2" height="3.5" rx="1" fill="#FA541C"/></svg>';
         } elseif ( false !== strpos( $n, 'navi' ) || false !== strpos( $n, 'music' ) || false !== strpos( $n, '音' ) ) {
-            // Navidrome 蓝色音符/波形
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 17a2 2 0 100-4 2 2 0 000 4zm0 0V7l8-2v8m-8-4l8-2" stroke="#1890FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="13" r="2" fill="#1890FF"/></svg>';
+            // Navidrome 蓝色音符微标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 16.5a2.2 2.2 0 11-2.2-2.2c.4 0 .9.1 1.2.3V7l8-2v7.5a2.2 2.2 0 11-2.2-2.2c.4 0 .9.1 1.2.3V7.2l-6 1.5V16.5z" fill="#1890FF"/></svg>';
         } elseif ( false !== strpos( $n, 'iptv' ) || false !== strpos( $n, 'tv' ) || false !== strpos( $n, '视' ) ) {
-            // IPTV 粉色电视
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="7" width="16" height="12" rx="2" stroke="#EB2F96" stroke-width="1.8"/><path d="M9 4l3 3 3-3m-7 8h6" stroke="#EB2F96" stroke-width="1.8" stroke-linecap="round"/></svg>';
+            // IPTV 品红窄边宽屏电视 + 播放图标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="6.5" width="16" height="11.5" rx="2.5" stroke="#EB2F96" stroke-width="1.6" fill="#FFD6E7" fill-opacity="0.35"/><path d="M10.5 9.8l4.2 2.45-4.2 2.45V9.8z" fill="#EB2F96"/><path d="M9.5 4.5l2.5 2 2.5-2M9 19.5h6" stroke="#EB2F96" stroke-width="1.5" stroke-linecap="round"/></svg>';
         } elseif ( false !== strpos( $n, '工' ) || false !== strpos( $n, 'tool' ) ) {
-            // 工具 立方体
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M12 4l7 4-7 4-7-4 7-4zm-7 5.5l7 4v6.5l-7-4V9.5zm14 0l-7 4v6.5l7-4V9.5z" fill="#595959"/></svg>';
+            // 工具 现代多功能扳手与螺丝刀微标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.7 6.3a3.2 3.2 0 00-3.9.5l3.4 3.4-1.4 1.4-3.4-3.4a3.2 3.2 0 00-.5 3.9l-4 4a1.5 1.5 0 002.1 2.1l4-4a3.2 3.2 0 003.9-.5l-3.4-3.4 1.4-1.4 3.4 3.4a3.2 3.2 0 00.5-3.9l-2.1-2.1z" fill="#595959"/></svg>';
         } elseif ( false !== strpos( $n, '代理' ) || false !== strpos( $n, 'proxy' ) || false !== strpos( $n, 'clash' ) ) {
-            // 代理 蓝色网络/猫
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
+            // 代理 航行纸飞机微标 (青色)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><path d="M4.5 11.5l14-6-6 14-2.5-5.5-5.5-2.5z" fill="#13C2C2"/><path d="M10 14l8.5-8.5" stroke="#E6FFFB" stroke-width="1.4"/></svg>';
         } else {
             // 统一默认图标（未预置专属图标的新增分类）
             $svg = self::get_default_item_icon_svg();
@@ -465,36 +520,43 @@ final class Apps_Exhibition {
      * 获取平台对应的专属图标 HTML
      */
     public static function get_platform_icon_html( $name ) {
-        $n = strtolower( trim( (string) $name ) );
+        $trim_name = trim( (string) $name );
+        $platform_icons = self::get_all_platform_icons();
+        if ( ! empty( $platform_icons[ $trim_name ] ) ) {
+            $url = esc_url( $platform_icons[ $trim_name ] );
+            return '<span class="ae-item-icon ae-item-icon-custom"><img src="' . $url . '" alt="' . esc_attr( $trim_name ) . '" class="ae-custom-icon-img" width="22" height="22" loading="lazy" decoding="async" /></span>';
+        }
+
+        $n = strtolower( $trim_name );
         $svg = '';
 
         if ( 'androidtv' === $n || false !== strpos( $n, 'androidtv' ) || false !== strpos( $n, 'android tv' ) ) {
-            // AndroidTV 绿色电视
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="12" rx="3" stroke="#52C41A" stroke-width="1.8"/><circle cx="8" cy="12" r="1" fill="#52C41A"/><circle cx="16" cy="12" r="1" fill="#52C41A"/><path d="M10 18l-1 3m5-3l1 3" stroke="#52C41A" stroke-width="1.8" stroke-linecap="round"/></svg>';
+            // AndroidTV 绿色电视 + 机器人 (与 Android 系列风格呼应)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="11.5" rx="2.5" stroke="#52C41A" stroke-width="1.6" fill="#D9F7BE" fill-opacity="0.35"/><path d="M9 3.8l2 2.2M15 3.8l-2 2.2" stroke="#52C41A" stroke-width="1.5" stroke-linecap="round"/><path d="M9.5 11.8a2.5 2.5 0 015 0v1h-5v-1z" fill="#52C41A"/><circle cx="11" cy="11.2" r="0.5" fill="#fff"/><circle cx="13" cy="11.2" r="0.5" fill="#fff"/><path d="M10 19l-1 2m6-2l1 2" stroke="#52C41A" stroke-width="1.5" stroke-linecap="round"/></svg>';
         } elseif ( 'android' === $n || false !== strpos( $n, 'android' ) || false !== strpos( $n, '安卓' ) ) {
-            // Android 绿色小人
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 8.5a4 4 0 018 0v2H8v-2zm-1.5-2L5 5m12.5 1.5L19 5M7 12h10v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6z" fill="#52C41A"/><circle cx="10" cy="8" r="0.8" fill="#fff"/><circle cx="14" cy="8" r="0.8" fill="#fff"/></svg>';
+            // Android 官方经典绿色机器人
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M7.5 9.5a4.5 4.5 0 019 0v2h-9v-2zm-1.8-2.2l1.6 1.4M18.3 7.3l-1.6 1.4M6.5 12.5h11v5.5a2 2 0 01-2 2H8.5a2 2 0 01-2-2v-5.5z" fill="#52C41A"/><circle cx="10" cy="8.8" r="0.8" fill="#fff"/><circle cx="14" cy="8.8" r="0.8" fill="#fff"/></svg>';
         } elseif ( 'ios' === $n ) {
-            // iOS 苹果
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.5 4c-.5.6-1.3 1-2 1-.1-.7.3-1.5.8-2 .5-.5 1.3-.9 1.9-.9.1.7-.2 1.4-.7 1.9zm1.7 5.2c-.1 0-1.8 1-1.8 3.1s2.2 2.9 2.2 2.9c-.3 1-1.1 2.3-2 2.3-.7 0-1.2-.4-2-.4s-1.3.4-2 .4c-.9 0-1.8-1.3-2.3-2.6-.9-2.3-.2-5.1 1.7-5.1 1 0 1.7.6 2.3.6.5 0 1.4-.7 2.5-.6.5 0 1.9.1 2.7 1.2-.1.1-1.3.7-1.3 2.2z" fill="#262626"/></svg>';
+            // iOS 纯正 Apple 经典徽标（标准大比例，饱满清晰）
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F7"/><path d="M15.98 12.47c-.01-1.21.54-2.13 1.65-2.8-.62-.89-1.56-1.38-2.8-1.47-1.17-.09-2.45.68-2.92.68-.49 0-1.63-.65-2.52-.65C7.55 8.26 5.6 9.7 5.6 12.63q0 1.3.48 2.68c.42 1.21 1.95 4.18 3.54 4.13.83-.02 1.42-.59 2.5-.59 1.05 0 1.59.59 2.52.59 1.6-.02 2.98-2.72 3.39-3.94-2.15-1.01-2.04-2.97-2.04-3.03zm-1.87-5.42c.9-1.07.82-2.04.79-2.39-.8.05-1.72.54-2.24 1.15-.58.65-.92 1.46-.84 2.37.86.07 1.65-.38 2.29-1.13z" fill="#1D1D1F"/></svg>';
         } elseif ( 'ipados' === $n || false !== strpos( $n, 'ipad' ) ) {
-            // iPadOS 平板
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5.5" y="4" width="13" height="16" rx="2" stroke="#1677FF" stroke-width="1.8"/><circle cx="12" cy="17.5" r="0.8" fill="#1677FF"/></svg>';
+            // iPadOS 现代全面屏 iPad (全面屏圆角 + 底部触控指示条)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5" y="4" width="14" height="16" rx="2.5" fill="#BAE0FF" fill-opacity="0.35" stroke="#1677FF" stroke-width="1.6"/><rect x="6.8" y="5.8" width="10.4" height="12.4" rx="1.5" stroke="#1677FF" stroke-width="1" stroke-opacity="0.6"/><path d="M10.5 16.5h3" stroke="#1677FF" stroke-width="1.5" stroke-linecap="round"/></svg>';
         } elseif ( 'tvos' === $n || false !== strpos( $n, 'appletv' ) ) {
-            // tvOS 黑色方块
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><rect x="5" y="7" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.8"/><path d="M9 12h2.5m1.5-1.5l2 3m0-3l-2 3" stroke="#FA8C16" stroke-width="1.5" stroke-linecap="round"/></svg>';
+            // tvOS 柔和灰底 + 纯正 Apple TV 徽标 (告别死黑突兀块)
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F7"/><rect x="4.5" y="5.5" width="15" height="13" rx="3.5" fill="#E4E5E8" stroke="#1D1D1F" stroke-width="1.5"/><path d="M8.2 9.5c-.1.2-.4.4-.7.4-.1-.3.2-.6.4-.8.2-.2.5-.3.7-.3 0 .3-.1.5-.4.7zm.8 2.1c0 .7.5 1 .5 1-.2.4-.4.8-.8.8-.3 0-.4-.2-.8-.2s-.5.2-.8.2c-.4 0-.8-.6-1-1.1-.4-1 0-2.1.8-2.1.4 0 .7.2.9.2.2 0 .5-.3.9-.3.2 0 .8.1 1.1.5-.7.3-.7.8-.7.8z" fill="#1D1D1F"/><path d="M12.5 9.2v5M11.5 10.3h2M14.5 11.2l1.2 3.2 1.2-3.2" stroke="#1D1D1F" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         } elseif ( 'macos' === $n || false !== strpos( $n, 'mac' ) ) {
-            // macOS 蓝屏显示器
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="#1677FF" stroke-width="1.8"/><path d="M9 19h6m-3-3v3" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/></svg>';
+            // macOS 现代 MacBook/iMac 全面屏显示器微标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4.5" y="5.5" width="15" height="10" rx="1.5" stroke="#1677FF" stroke-width="1.6" fill="#BAE0FF" fill-opacity="0.35"/><circle cx="12" cy="7" r="0.6" fill="#1677FF"/><path d="M9.5 18.5h5m-2.5-3v3" stroke="#1677FF" stroke-width="1.6" stroke-linecap="round"/></svg>';
         } elseif ( 'windows' === $n || false !== strpos( $n, 'win' ) ) {
-            // Windows 四色/蓝格
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M5 5.5l5.5-.8v6.3H5V5.5zm6.5-1l7-1v7.3h-7V4.5zM5 12h5.5v6.3L5 17.5V12zm6.5 0h7v7.3l-7-1V12z" fill="#0078D4"/></svg>';
+            // Windows 微软 Win11 官方四格徽标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4.5 5.5l6-.8v6.3h-6V5.5zm7-.9l7.5-1v7.2h-7.5V4.6zM4.5 12.5h6v6.3l-6-.8v-5.5zm7 0h7.5v7.2l-7.5-1v-6.2z" fill="#0078D4"/></svg>';
         } elseif ( false !== strpos( $n, 'linux' ) ) {
-            // Linux
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><circle cx="12" cy="9" r="3.5" fill="#FAAD14"/><path d="M8 15c0-2 2-3.5 4-3.5s4 1.5 4 3.5v2H8v-2z" fill="#262626"/></svg>';
+            // Linux 暖色底经典企鹅
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><path d="M12 4.5a3 3 0 00-3 3v4a3 3 0 006 0v-4a3 3 0 00-3-3z" fill="#262626"/><ellipse cx="12" cy="13" rx="3.5" ry="4" fill="#FAAD14"/><polygon points="11,8 13,8 12,9.5" fill="#FA8C16"/></svg>';
         } elseif ( false !== strpos( $n, '鸿蒙' ) || false !== strpos( $n, 'harmony' ) || false !== strpos( $n, 'hos' ) ) {
-            // 鸿蒙系统 (HarmonyOS)
-            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2"/><path d="M6 16.5h12" stroke="#0A59F7" stroke-width="2" stroke-linecap="round"/></svg>';
+            // 鸿蒙系统 (HarmonyOS) 官方双环微标
+            $svg = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2.2"/><path d="M6 16.8h12" stroke="#0A59F7" stroke-width="2.2" stroke-linecap="round"/></svg>';
         } else {
             // 统一默认图标（未预置专属图标的新增平台）
             $svg = self::get_default_item_icon_svg();
@@ -548,6 +610,14 @@ final class Apps_Exhibition {
 
         update_option( 'apps_exhibition_filter_categories', $cats );
 
+        $hide_all = ! empty( $_POST['hide_all_category'] ) ? 1 : 0;
+        update_option( 'apps_exhibition_hide_all_category', $hide_all );
+
+        // 保存分类自定义图标映射
+        $icons_raw = isset( $_POST['filter_category_icons'] ) ? wp_unslash( $_POST['filter_category_icons'] ) : '';
+        $icons     = $this->sanitize_icon_map( $icons_raw, $cats, $renames, 'apps_exhibition_category_icons' );
+        update_option( 'apps_exhibition_category_icons', $icons );
+
         // 改名自动迁移：把应用表中的旧分类名替换为新名，并同步分类排序的 key
         if ( ! empty( $renames ) ) {
             $this->migrate_category_names( $renames, 'app_filter_category' );
@@ -573,6 +643,11 @@ final class Apps_Exhibition {
         $renames     = $this->sanitize_rename_map( $renames_raw, $platforms );
 
         update_option( 'apps_exhibition_platform_categories', $platforms );
+
+        // 保存平台自定义图标映射
+        $icons_raw = isset( $_POST['platform_category_icons'] ) ? wp_unslash( $_POST['platform_category_icons'] ) : '';
+        $icons     = $this->sanitize_icon_map( $icons_raw, $platforms, $renames, 'apps_exhibition_platform_icons' );
+        update_option( 'apps_exhibition_platform_icons', $icons );
 
         // 改名自动迁移：把应用表中的旧平台名替换为新名
         if ( ! empty( $renames ) ) {
@@ -660,6 +735,52 @@ final class Apps_Exhibition {
         }
 
         return $map;
+    }
+
+    /**
+     * 清洗分类/平台的自定义图标映射。
+     *
+     * @param string|array $raw_json    前端提交的 JSON 映射（或数组）。
+     * @param string[]     $valid_names 当前有效的分类/平台名称列表。
+     * @param array        $renames     改名映射表 [ '旧名' => '新名' ]。
+     * @param string       $option_key  既有配置 option 键名，用于改名时的平滑迁移。
+     * @return array<string,string> 清洗后的图标映射 [ '名称' => 'URL' ]。
+     */
+    private function sanitize_icon_map( $raw_json, array $valid_names, array $renames = [], $option_key = '' ) {
+        $raw = is_array( $raw_json ) ? $raw_json : json_decode( (string) $raw_json, true );
+        if ( ! is_array( $raw ) ) {
+            $raw = [];
+        }
+
+        // 结合已保存的旧映射，防止改名时旧名称的图标丢失
+        if ( ! empty( $option_key ) && ! empty( $renames ) ) {
+            $existing = get_option( $option_key, [] );
+            if ( is_array( $existing ) ) {
+                foreach ( $renames as $old_name => $new_name ) {
+                    if ( isset( $existing[ $old_name ] ) && ! isset( $raw[ $new_name ] ) ) {
+                        $raw[ $new_name ] = $existing[ $old_name ];
+                    }
+                }
+            }
+        }
+
+        $cleaned    = [];
+        $valid_flip = array_flip( $valid_names );
+
+        foreach ( $raw as $name => $url ) {
+            $name = trim( (string) $name );
+            $url  = trim( (string) $url );
+
+            // 仅保留当前有效名称中的项目且 URL 非空合法
+            if ( isset( $valid_flip[ $name ] ) && ! empty( $url ) ) {
+                $safe_url = esc_url_raw( $url );
+                if ( self::is_safe_url( $safe_url ) ) {
+                    $cleaned[ $name ] = $safe_url;
+                }
+            }
+        }
+
+        return $cleaned;
     }
 
     /**
@@ -912,6 +1033,15 @@ final class Apps_Exhibition {
             'confirmRemoveItemItem3'  => __( '未点击「保存」前关闭页面，将保留原有分类。', 'apps-exhibition' ),
             'confirmRemoveItemNotice' => __( '温馨提示：删除将在点击「保存」后生效；如需保留，请点击「取消」。', 'apps-exhibition' ),
             'confirmRemoveItemBtn'    => __( '确认删除', 'apps-exhibition' ),
+            // 分类与平台自定义图标
+            'chooseCategoryIcon'      => __( '选择或上传分类图标 (SVG/PNG/WebP/JPG)', 'apps-exhibition' ),
+            'choosePlatformIcon'      => __( '选择或上传平台图标 (SVG/PNG/WebP/JPG)', 'apps-exhibition' ),
+            'useIcon'                 => __( '使用此图标', 'apps-exhibition' ),
+            'clickToChangeIcon'       => __( '点击更换图标', 'apps-exhibition' ),
+            'changeIconBtn'           => __( '更换图标', 'apps-exhibition' ),
+            'resetDefaultIcon'        => __( '恢复默认图标', 'apps-exhibition' ),
+            'iconChangedHint'         => __( '已更换图标，点击下方保存后生效。', 'apps-exhibition' ),
+            'iconResetHint'           => __( '已恢复默认图标，点击下方保存后生效。', 'apps-exhibition' ),
         ] );
     }
 

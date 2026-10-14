@@ -57,10 +57,10 @@ jQuery(document).ready(function($) {
         $form.find('input[type="checkbox"]').prop('checked', false);
         $form.find('.ae-chip-card').removeClass('is-checked');
 
-        if (mode === 'edit' && data) {
-            $title.text(l10n.editApp || '编辑应用');
-            $('#ae-form-app-id').val(data.id);
-            $('#ae-form-redirect-paged').val(typeof currentPage !== 'undefined' ? currentPage : 1);
+        if ((mode === 'edit' || mode === 'clone') && data) {
+            $title.text(mode === 'clone' ? (l10n.cloneApp || '复制应用') : (l10n.editApp || '编辑应用'));
+            $('#ae-form-app-id').val(mode === 'clone' ? 0 : data.id);
+            $('#ae-form-redirect-paged').val(mode === 'clone' ? 1 : (typeof currentPage !== 'undefined' ? currentPage : 1));
             $('#ae-form-redirect-category').val(typeof currentSortCategory !== 'undefined' ? currentSortCategory : '');
             $('#ae-form-redirect-page-size').val(typeof pageSize !== 'undefined' ? pageSize : 10);
             $('#ae-form-redirect-search').val(($('#ae-search-input').val() || '').trim());
@@ -179,6 +179,25 @@ jQuery(document).ready(function($) {
         openModal('edit', {
             id: $row.attr('data-id'),
             name: $row.attr('data-name'),
+            badge: $row.attr('data-badge'),
+            description: $row.attr('data-description'),
+            icon: $row.attr('data-icon'),
+            platforms: $row.attr('data-platforms'),
+            filterCategory: $row.attr('data-filter-category'),
+            downloads: downloads
+        });
+    });
+
+    // 复制应用按钮
+    $(document).on('click', '.ae-clone-btn', function() {
+        var $row = $(this).closest('tr');
+        var downloads = [];
+        try { downloads = JSON.parse($row.attr('data-downloads') || '[]'); } catch(e) {}
+
+        var originalName = $row.attr('data-name') || '';
+        openModal('clone', {
+            id: 0,
+            name: originalName ? (originalName + ' - 副本') : '',
             badge: $row.attr('data-badge'),
             description: $row.attr('data-description'),
             icon: $row.attr('data-icon'),
@@ -902,14 +921,65 @@ jQuery(document).ready(function($) {
             handle: '.ae-drag-handle',
             axis: 'y',
             placeholder: 'ui-sortable-placeholder',
-            items: 'tr[data-id]:not(.ae-category-hidden):not(.ae-search-hidden)',
+            forcePlaceholderSize: true,
+            tolerance: 'pointer',
+            cursor: 'grabbing',
+            appendTo: 'body',
+            items: 'tr[data-id]:not(.ae-category-hidden):not(.ae-search-hidden):not(.ae-page-hidden)',
             helper: function(e, tr) {
                 var $originals = tr.children();
                 var $helper = tr.clone();
+                var rowWidth = tr.outerWidth() || $('#ae-apps-table').outerWidth();
                 $helper.children().each(function(index) {
-                    $(this).width($originals.eq(index).width());
+                    var w = $originals.eq(index).outerWidth();
+                    $(this).css({
+                        'width': w + 'px',
+                        'min-width': w + 'px',
+                        'max-width': w + 'px',
+                        'box-sizing': 'border-box'
+                    });
+                });
+                $helper.css({
+                    'width': rowWidth + 'px',
+                    'min-width': rowWidth + 'px',
+                    'max-width': rowWidth + 'px',
+                    'box-sizing': 'border-box',
+                    'margin': '0'
                 });
                 return $helper;
+            },
+            start: function(e, ui) {
+                var colCount = ui.item.children('td').length || 8;
+                var rowHeight = ui.item.outerHeight();
+                var tableLeft = $('#ae-apps-table').offset().left;
+
+                // 锁定拖拽镜像横向 left 坐标，与表格严格对齐，绝不超出到左侧 WP 管理菜单
+                ui.helper.css({
+                    'left': tableLeft + 'px',
+                    'margin': '0'
+                });
+
+                ui.placeholder.html('<td colspan="' + colCount + '">&nbsp;</td>');
+                ui.placeholder.find('td').css({
+                    'height': rowHeight + 'px',
+                    'line-height': rowHeight + 'px',
+                    'box-sizing': 'border-box'
+                });
+                ui.placeholder.css('height', rowHeight + 'px');
+            },
+            sort: function(e, ui) {
+                // 拖拽移动过程中持续将 left 锚定在表格左边缘
+                var tableLeft = $('#ae-apps-table').offset().left;
+                if (ui.position) {
+                    ui.position.left = tableLeft;
+                }
+                if (ui.helper && ui.helper.length) {
+                    ui.helper[0].style.left = tableLeft + 'px';
+                }
+            },
+            stop: function(e, ui) {
+                // 拖拽结束时确保彻底清除任何残留占位符，恢复真实行完整内容
+                $('.ui-sortable-placeholder').remove();
             },
             update: function() {
                 if (!currentSortCategory) return;
@@ -1186,6 +1256,7 @@ jQuery(document).ready(function($) {
             placeholder: 'poster-sortable-placeholder',
             forcePlaceholderSize: true,
             tolerance: 'pointer',
+            cursor: 'grabbing',
             update: function() { applyPosterOrder($(this)); }
         });
 
@@ -1223,6 +1294,17 @@ jQuery(document).ready(function($) {
             $editor.find('.ae-cat-value').val(values.join('\n'));
             $editor.find('.ae-cat-list').toggleClass('has-items', values.length > 0);
 
+            // 同步图标配置 JSON
+            var iconsMap = {};
+            $editor.find('.ae-cat-item').each(function() {
+                var name = cleanName($(this).find('.ae-cat-name').text());
+                var icon = $(this).attr('data-icon') || '';
+                if (name && icon) {
+                    iconsMap[name] = icon;
+                }
+            });
+            $editor.find('.ae-cat-icons-input').val(JSON.stringify(iconsMap));
+
             // 更新分类数量统计
             if ($editor.find('input[name="filter_categories"]').length) {
                 $('#ae-filter-cat-text').text('共 ' + values.length + ' 个分类');
@@ -1243,64 +1325,88 @@ jQuery(document).ready(function($) {
             var n = (name || '').toLowerCase();
             if (isPlatform) {
                 if (n.indexOf('androidtv') !== -1 || n.indexOf('android tv') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="12" rx="3" stroke="#52C41A" stroke-width="1.8"/><circle cx="8" cy="12" r="1" fill="#52C41A"/><circle cx="16" cy="12" r="1" fill="#52C41A"/><path d="M10 18l-1 3m5-3l1 3" stroke="#52C41A" stroke-width="1.8" stroke-linecap="round"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><rect x="4" y="6" width="16" height="11.5" rx="2.5" stroke="#52C41A" stroke-width="1.6" fill="#D9F7BE" fill-opacity="0.35"/><path d="M9 3.8l2 2.2M15 3.8l-2 2.2" stroke="#52C41A" stroke-width="1.5" stroke-linecap="round"/><path d="M9.5 11.8a2.5 2.5 0 015 0v1h-5v-1z" fill="#52C41A"/><circle cx="11" cy="11.2" r="0.5" fill="#fff"/><circle cx="13" cy="11.2" r="0.5" fill="#fff"/><path d="M10 19l-1 2m6-2l1 2" stroke="#52C41A" stroke-width="1.5" stroke-linecap="round"/></svg>';
                 } else if (n.indexOf('android') !== -1 || n.indexOf('安卓') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 8.5a4 4 0 018 0v2H8v-2zm-1.5-2L5 5m12.5 1.5L19 5M7 12h10v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6z" fill="#52C41A"/><circle cx="10" cy="8" r="0.8" fill="#fff"/><circle cx="14" cy="8" r="0.8" fill="#fff"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M7.5 9.5a4.5 4.5 0 019 0v2h-9v-2zm-1.8-2.2l1.6 1.4M18.3 7.3l-1.6 1.4M6.5 12.5h11v5.5a2 2 0 01-2 2H8.5a2 2 0 01-2-2v-5.5z" fill="#52C41A"/><circle cx="10" cy="8.8" r="0.8" fill="#fff"/><circle cx="14" cy="8.8" r="0.8" fill="#fff"/></svg>';
                 } else if (n === 'ios') {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.5 4c-.5.6-1.3 1-2 1-.1-.7.3-1.5.8-2 .5-.5 1.3-.9 1.9-.9.1.7-.2 1.4-.7 1.9zm1.7 5.2c-.1 0-1.8 1-1.8 3.1s2.2 2.9 2.2 2.9c-.3 1-1.1 2.3-2 2.3-.7 0-1.2-.4-2-.4s-1.3.4-2 .4c-.9 0-1.8-1.3-2.3-2.6-.9-2.3-.2-5.1 1.7-5.1 1 0 1.7.6 2.3.6.5 0 1.4-.7 2.5-.6.5 0 1.9.1 2.7 1.2-.1.1-1.3.7-1.3 2.2z" fill="#262626"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F7"/><path d="M15.98 12.47c-.01-1.21.54-2.13 1.65-2.8-.62-.89-1.56-1.38-2.8-1.47-1.17-.09-2.45.68-2.92.68-.49 0-1.63-.65-2.52-.65C7.55 8.26 5.6 9.7 5.6 12.63q0 1.3.48 2.68c.42 1.21 1.95 4.18 3.54 4.13.83-.02 1.42-.59 2.5-.59 1.05 0 1.59.59 2.52.59 1.6-.02 2.98-2.72 3.39-3.94-2.15-1.01-2.04-2.97-2.04-3.03zm-1.87-5.42c.9-1.07.82-2.04.79-2.39-.8.05-1.72.54-2.24 1.15-.58.65-.92 1.46-.84 2.37.86.07 1.65-.38 2.29-1.13z" fill="#1D1D1F"/></svg>';
                 } else if (n.indexOf('ipad') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5.5" y="4" width="13" height="16" rx="2" stroke="#1677FF" stroke-width="1.8"/><circle cx="12" cy="17.5" r="0.8" fill="#1677FF"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="5" y="4" width="14" height="16" rx="2.5" fill="#BAE0FF" fill-opacity="0.35" stroke="#1677FF" stroke-width="1.6"/><rect x="6.8" y="5.8" width="10.4" height="12.4" rx="1.5" stroke="#1677FF" stroke-width="1" stroke-opacity="0.6"/><path d="M10.5 16.5h3" stroke="#1677FF" stroke-width="1.5" stroke-linecap="round"/></svg>';
                 } else if (n.indexOf('tvos') !== -1 || n.indexOf('appletv') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><rect x="5" y="7" width="14" height="10" rx="2" stroke="#fff" stroke-width="1.8"/><path d="M9 12h2.5m1.5-1.5l2 3m0-3l-2 3" stroke="#FA8C16" stroke-width="1.5" stroke-linecap="round"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F7"/><rect x="4.5" y="5.5" width="15" height="13" rx="3.5" fill="#E4E5E8" stroke="#1D1D1F" stroke-width="1.5"/><path d="M8.2 9.5c-.1.2-.4.4-.7.4-.1-.3.2-.6.4-.8.2-.2.5-.3.7-.3 0 .3-.1.5-.4.7zm.8 2.1c0 .7.5 1 .5 1-.2.4-.4.8-.8.8-.3 0-.4-.2-.8-.2s-.5.2-.8.2c-.4 0-.8-.6-1-1.1-.4-1 0-2.1.8-2.1.4 0 .7.2.9.2.2 0 .5-.3.9-.3.2 0 .8.1 1.1.5-.7.3-.7.8-.7.8z" fill="#1D1D1F"/><path d="M12.5 9.2v5M11.5 10.3h2M14.5 11.2l1.2 3.2 1.2-3.2" stroke="#1D1D1F" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
                 } else if (n.indexOf('mac') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4" y="5" width="16" height="11" rx="1.5" stroke="#1677FF" stroke-width="1.8"/><path d="M9 19h6m-3-3v3" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4.5" y="5.5" width="15" height="10" rx="1.5" stroke="#1677FF" stroke-width="1.6" fill="#BAE0FF" fill-opacity="0.35"/><circle cx="12" cy="7" r="0.6" fill="#1677FF"/><path d="M9.5 18.5h5m-2.5-3v3" stroke="#1677FF" stroke-width="1.6" stroke-linecap="round"/></svg>';
                 } else if (n.indexOf('win') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M5 5.5l5.5-.8v6.3H5V5.5zm6.5-1l7-1v7.3h-7V4.5zM5 12h5.5v6.3L5 17.5V12zm6.5 0h7v7.3l-7-1V12z" fill="#0078D4"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4.5 5.5l6-.8v6.3h-6V5.5zm7-.9l7.5-1v7.2h-7.5V4.6zM4.5 12.5h6v6.3l-6-.8v-5.5zm7 0h7.5v7.2l-7.5-1v-6.2z" fill="#0078D4"/></svg>';
                 } else if (n.indexOf('linux') !== -1) {
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><circle cx="12" cy="9" r="3.5" fill="#FAAD14"/><path d="M8 15c0-2 2-3.5 4-3.5s4 1.5 4 3.5v2H8v-2z" fill="#262626"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFFBE6"/><path d="M12 4.5a3 3 0 00-3 3v4a3 3 0 006 0v-4a3 3 0 00-3-3z" fill="#262626"/><ellipse cx="12" cy="13" rx="3.5" ry="4" fill="#FAAD14"/><polygon points="11,8 13,8 12,9.5" fill="#FA8C16"/></svg>';
                 } else if (n.indexOf('鸿蒙') !== -1 || n.indexOf('harmony') !== -1 || n.indexOf('hos') !== -1) {
                     // 鸿蒙系统 (HarmonyOS)
-                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2"/><path d="M6 16.5h12" stroke="#0A59F7" stroke-width="2" stroke-linecap="round"/></svg>';
+                    return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#EBF3FF"/><circle cx="12" cy="10" r="4.2" stroke="#0A59F7" stroke-width="2.2"/><path d="M6 16.8h12" stroke="#0A59F7" stroke-width="2.2" stroke-linecap="round"/></svg>';
                 }
                 return DEFAULT_ITEM_ICON_SVG;
             }
 
             // 分类图标
             if (n === '__all__' || n === '全部' || n === 'all') {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M4 4h6.5v6.5H4V4zm9.5 0H20v6.5h-6.5V4zM4 13.5h6.5V20H4v-6.5zm9.5 0H20V20h-6.5v-6.5z" fill="#1677FF"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><rect x="4.5" y="4.5" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="13" y="4.5" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="4.5" y="13" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/><rect x="13" y="13" width="6.5" height="6.5" rx="1.5" fill="#1677FF"/></svg>';
             } else if (n.indexOf('ai') !== -1 || n.indexOf('agent') !== -1 || n.indexOf('智能') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 4v2m-5 4h10a2 2 0 012 2v5a2 2 0 01-2 2H7a2 2 0 01-2-2v-5a2 2 0 012-2zm-3 4H3m18 0h-1m-11 1v1m6-1v1" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><circle cx="9.5" cy="13.5" r="1" fill="#1677FF"/><circle cx="14.5" cy="13.5" r="1" fill="#1677FF"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F4FF"/><path d="M12 3.8v2.2" stroke="#1677FF" stroke-width="1.8" stroke-linecap="round"/><rect x="5.5" y="6" width="13" height="11.5" rx="3.5" fill="#BAE0FF" fill-opacity="0.35" stroke="#1677FF" stroke-width="1.6"/><circle cx="9.5" cy="11.2" r="1.3" fill="#1677FF"/><circle cx="14.5" cy="11.2" r="1.3" fill="#1677FF"/><path d="M10 14.5c.6.5 1.4.7 2 .7s1.4-.2 2-.7" stroke="#1677FF" stroke-width="1.4" stroke-linecap="round"/><path d="M3.8 11.5H5.5M18.5 11.5H20.2" stroke="#1677FF" stroke-width="1.6" stroke-linecap="round"/></svg>';
             } else if (n.indexOf('emby') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8 6.5l10 5.5-10 5.5V6.5z" fill="#52C41A"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F6FFED"/><path d="M8.5 6.8c0-.7.8-1.1 1.4-.7l8.2 4.7c.6.4.6 1.3 0 1.6l-8.2 4.7c-.6.4-1.4 0-1.4-.7V6.8z" fill="#52C41A"/></svg>';
             } else if (n.indexOf('jellyfin') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4l7 5-2.5 9.5h-9L5 9l7-5z" fill="#722ED1"/><path d="M12 8l3.5 2.5-1.5 5h-4L8.5 10.5 12 8z" fill="#D3ADF7"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F9F0FF"/><path d="M12 4.5l6.5 4.5-2.5 9.5h-8L5.5 9 12 4.5z" fill="#722ED1"/><path d="M12 8.5l3.5 2.5-1.5 5h-4L8.5 11 12 8.5z" fill="#D3ADF7"/></svg>';
             } else if (n.indexOf('plex') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#1F1F1F"/><path d="M9 7l5 5-5 5h3l5-5-5-5H9z" fill="#FA8C16"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF7E6"/><rect x="5.5" y="6.5" width="2.2" height="11" rx="1.1" fill="#434343"/><path d="M9 6.5l5.5 5.5-5.5 5.5h3.2l5.5-5.5-5.5-5.5H9z" fill="#FA8C16"/></svg>';
             } else if (n.indexOf('audio') !== -1 || n.indexOf('book') !== -1 || n.indexOf('书') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5 6.5A2.5 2.5 0 017.5 4H19v14H7.5A2.5 2.5 0 005 20.5V6.5z" stroke="#FA541C" stroke-width="1.8" stroke-linecap="round"/><path d="M5 18a2.5 2.5 0 012.5-2.5H19" stroke="#FA541C" stroke-width="1.8"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF2E8"/><path d="M5.5 17.5A2 2 0 017.5 16H18V6.5A1.5 1.5 0 0016.5 5h-9A2 2 0 005.5 7v10.5z" fill="#FFBB96" fill-opacity="0.35" stroke="#FA541C" stroke-width="1.6"/><path d="M5.5 17.5A2 2 0 017.5 16H18" stroke="#FA541C" stroke-width="1.6"/><path d="M8.5 10.5a3.5 3.5 0 017 0" stroke="#FA541C" stroke-width="1.6" stroke-linecap="round"/><rect x="7" y="10" width="2" height="3.5" rx="1" fill="#FA541C"/><rect x="15" y="10" width="2" height="3.5" rx="1" fill="#FA541C"/></svg>';
             } else if (n.indexOf('navi') !== -1 || n.indexOf('music') !== -1 || n.indexOf('音') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 17a2 2 0 100-4 2 2 0 000 4zm0 0V7l8-2v8m-8-4l8-2" stroke="#1890FF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="13" r="2" fill="#1890FF"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6F7FF"/><path d="M9 16.5a2.2 2.2 0 11-2.2-2.2c.4 0 .9.1 1.2.3V7l8-2v7.5a2.2 2.2 0 11-2.2-2.2c.4 0 .9.1 1.2.3V7.2l-6 1.5V16.5z" fill="#1890FF"/></svg>';
             } else if (n.indexOf('iptv') !== -1 || n.indexOf('tv') !== -1 || n.indexOf('视') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="7" width="16" height="12" rx="2" stroke="#EB2F96" stroke-width="1.8"/><path d="M9 4l3 3 3-3m-7 8h6" stroke="#EB2F96" stroke-width="1.8" stroke-linecap="round"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#FFF0F6"/><rect x="4" y="6.5" width="16" height="11.5" rx="2.5" stroke="#EB2F96" stroke-width="1.6" fill="#FFD6E7" fill-opacity="0.35"/><path d="M10.5 9.8l4.2 2.45-4.2 2.45V9.8z" fill="#EB2F96"/><path d="M9.5 4.5l2.5 2 2.5-2M9 19.5h6" stroke="#EB2F96" stroke-width="1.5" stroke-linecap="round"/></svg>';
             } else if (n.indexOf('工') !== -1 || n.indexOf('tool') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M12 4l7 4-7 4-7-4 7-4zm-7 5.5l7 4v6.5l-7-4V9.5zm14 0l-7 4v6.5l7-4V9.5z" fill="#595959"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#F5F5F5"/><path d="M14.7 6.3a3.2 3.2 0 00-3.9.5l3.4 3.4-1.4 1.4-3.4-3.4a3.2 3.2 0 00-.5 3.9l-4 4a1.5 1.5 0 002.1 2.1l4-4a3.2 3.2 0 003.9-.5l-3.4-3.4 1.4-1.4 3.4 3.4a3.2 3.2 0 00.5-3.9l-2.1-2.1z" fill="#595959"/></svg>';
             } else if (n.indexOf('代理') !== -1 || n.indexOf('proxy') !== -1 || n.indexOf('clash') !== -1) {
-                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><circle cx="12" cy="12" r="7" stroke="#13C2C2" stroke-width="1.8"/><path d="M5 12h14M12 5a10 10 0 010 14M12 5a10 10 0 000 14" stroke="#13C2C2" stroke-width="1.5"/></svg>';
+                return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none"><rect width="24" height="24" rx="6" fill="#E6FFFB"/><path d="M4.5 11.5l14-6-6 14-2.5-5.5-5.5-2.5z" fill="#13C2C2"/><path d="M10 14l8.5-8.5" stroke="#E6FFFB" stroke-width="1.4"/></svg>';
             }
             return DEFAULT_ITEM_ICON_SVG;
         }
 
-        function buildItem(name, isPlatform) {
-            var iconHtml = '<span class="ae-item-icon">' + getItemIconSvg(name, isPlatform) + '</span>';
-            return $('<li class="ae-cat-item"></li>')
-                .attr('data-origin', name)
-                .append('<span class="ae-cat-drag" title="' + escAttr(l10n.dragToSort || '拖拽排序') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>')
-                .append(iconHtml)
+        function buildItem(name, isPlatform, iconUrl) {
+            var iconInner = '';
+            if (iconUrl) {
+                iconInner = '<span class="ae-item-icon ae-item-icon-custom"><img src="' + escAttr(iconUrl) + '" alt="" class="ae-custom-icon-img" width="22" height="22" /></span>';
+            } else {
+                iconInner = '<span class="ae-item-icon">' + getItemIconSvg(name, isPlatform) + '</span>';
+            }
+
+            var iconWrapHtml = '<div class="ae-cat-icon-wrap" title="' + escAttr(l10n.clickToChangeIcon || '点击更换图标') + '">' +
+                iconInner +
+                '<span class="ae-cat-icon-badge" title="' + escAttr(l10n.changeIconBtn || '更换图标') + '">' +
+                '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>' +
+                '</span>' +
+                '</div>';
+
+            var resetBtnDisplay = iconUrl ? '' : ' style="display:none;"';
+
+            var $li = $('<li class="ae-cat-item"></li>')
+                .attr('data-origin', name);
+
+            if (iconUrl) {
+                $li.attr('data-icon', iconUrl);
+            }
+
+            $li.append('<span class="ae-cat-drag" title="' + escAttr(l10n.dragToSort || '拖拽排序') + '"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>')
+                .append(iconWrapHtml)
                 .append($('<span class="ae-cat-name"></span>').text(name))
                 .append('<span class="ae-cat-actions">' +
+                    '<button type="button" class="ae-cat-action-btn ae-cat-icon-upload" title="' + escAttr(l10n.changeIconBtn || '更换图标') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></button>' +
+                    '<button type="button" class="ae-cat-action-btn ae-cat-icon-reset" title="' + escAttr(l10n.resetDefaultIcon || '恢复默认图标') + '"' + resetBtnDisplay + '><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button>' +
                     '<button type="button" class="ae-cat-action-btn ae-cat-edit" title="' + escAttr(l10n.editBtn || '修改') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>' +
                     '<button type="button" class="ae-cat-action-btn ae-cat-remove" title="' + escAttr(l10n.deleteBtn || '删除') + '"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>' +
                     '</span>');
+
+            return $li;
         }
 
         function addItem($editor, rawName) {
@@ -1339,6 +1445,7 @@ jQuery(document).ready(function($) {
                 placeholder: 'ae-cat-placeholder',
                 forcePlaceholderSize: true,
                 tolerance: 'pointer',
+                cursor: 'grabbing',
                 update: function() { sync($editor); }
             });
         });
@@ -1364,6 +1471,77 @@ jQuery(document).ready(function($) {
                     $(this).val('');
                 }
             }
+        });
+
+        var catMediaFrame = null;
+        var $currentCatItem = null;
+
+        $(document).on('click', '.ae-cat-icon-wrap, .ae-cat-icon-upload', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $currentCatItem = $(this).closest('.ae-cat-item');
+            var $editor = $currentCatItem.closest('.ae-cat-editor');
+            var isPlatform = $editor.find('input[name="platform_categories"]').length > 0;
+            var frameTitle = isPlatform ? (l10n.choosePlatformIcon || '选择或上传平台图标 (SVG/PNG/WebP/JPG)') : (l10n.chooseCategoryIcon || '选择或上传分类图标 (SVG/PNG/WebP/JPG)');
+
+            if (catMediaFrame) {
+                catMediaFrame.title = frameTitle;
+                catMediaFrame.open();
+                return;
+            }
+
+            catMediaFrame = wp.media({
+                title: frameTitle,
+                button: { text: l10n.useIcon || '使用此图标' },
+                multiple: false,
+                library: { type: 'image' }
+            });
+
+            catMediaFrame.on('select', function() {
+                var selection = catMediaFrame.state().get('selection');
+                if (!selection || !selection.first()) return;
+                var attachment = selection.first().toJSON();
+                if (attachment && attachment.url && $currentCatItem && $currentCatItem.length) {
+                    var iconUrl = attachment.url;
+                    $currentCatItem.attr('data-icon', iconUrl);
+                    var $iconWrap = $currentCatItem.find('.ae-cat-icon-wrap');
+                    var customIconHtml = '<span class="ae-item-icon ae-item-icon-custom"><img src="' + escAttr(iconUrl) + '" alt="" class="ae-custom-icon-img" width="22" height="22" /></span>';
+                    var $oldIcon = $iconWrap.find('.ae-item-icon');
+                    if ($oldIcon.length) {
+                        $oldIcon.replaceWith(customIconHtml);
+                    } else {
+                        $iconWrap.prepend(customIconHtml);
+                    }
+                    $currentCatItem.find('.ae-cat-icon-reset').show();
+                    var $ed = $currentCatItem.closest('.ae-cat-editor');
+                    sync($ed);
+                    showToast(l10n.iconChangedHint || '已更换图标，点击下方保存后生效。');
+                }
+            });
+
+            catMediaFrame.open();
+        });
+
+        $(document).on('click', '.ae-cat-icon-reset', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var $item = $(this).closest('.ae-cat-item');
+            var $editor = $item.closest('.ae-cat-editor');
+            var isPlatform = $editor.find('input[name="platform_categories"]').length > 0;
+            var name = cleanName($item.find('.ae-cat-name').text());
+
+            $item.removeAttr('data-icon');
+            $(this).hide();
+            var defaultSvgHtml = '<span class="ae-item-icon">' + getItemIconSvg(name, isPlatform) + '</span>';
+            var $iconWrap = $item.find('.ae-cat-icon-wrap');
+            var $oldIcon = $iconWrap.find('.ae-item-icon');
+            if ($oldIcon.length) {
+                $oldIcon.replaceWith(defaultSvgHtml);
+            } else {
+                $iconWrap.prepend(defaultSvgHtml);
+            }
+            sync($editor);
+            showToast(l10n.iconResetHint || '已恢复默认图标，点击下方保存后生效。');
         });
 
         $(document).on('click', '.ae-cat-remove', function(e) {
@@ -1416,7 +1594,10 @@ jQuery(document).ready(function($) {
                         } else {
                             $name.text(newName);
                             var isPlat = $editor.find('input[name="platform_categories"]').length > 0;
-                            $item.find('.ae-item-icon').html(getItemIconSvg(newName, isPlat));
+                            var customIcon = $item.attr('data-icon');
+                            if (!customIcon) {
+                                $item.find('.ae-item-icon').html(getItemIconSvg(newName, isPlat));
+                            }
                             sync($editor);
                         }
                     }

@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 add_shortcode( 'apps_exhibition', 'apps_exhibition_shortcode' );
 
-function apps_exhibition_shortcode() {
+function apps_exhibition_shortcode( $atts = [] ) {
     global $wpdb;
 
     $plugin = Apps_Exhibition::get_instance();
@@ -15,11 +15,12 @@ function apps_exhibition_shortcode() {
     wp_enqueue_script( 'apps-exhibition-front' );
 
     wp_localize_script( 'apps-exhibition-front', 'appsExhibitionFront', [
-        'noResults' => __( '没有找到符合条件的应用。', 'apps-exhibition' ),
+        'noResults' => __( '该分类下暂无应用。', 'apps-exhibition' ),
     ] );
 
     $table = $wpdb->prefix . 'apps_exhibition';
-    $filter_category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : '';
+    $atts  = shortcode_atts( [ 'category' => '' ], $atts, 'apps_exhibition' );
+    $filter_category = isset( $_GET['category'] ) ? sanitize_text_field( wp_unslash( $_GET['category'] ) ) : sanitize_text_field( $atts['category'] ?? '' );
 
     // 缓存全部应用数据
     $cache_key = 'apps_exhibition_all_data_v' . Apps_Exhibition::VERSION;
@@ -67,9 +68,15 @@ function apps_exhibition_shortcode() {
     }
     $categories_in_use = $ordered_categories;
 
-    // 默认选中"全部"分类
-    if ( $filter_category === '' ) {
-        $filter_category = '__all__';
+    $hide_all_category = Apps_Exhibition::is_hide_all_category();
+
+    // 默认选中分类：开启隐藏“全部”时，若未指定分类或传入了已隐藏的“全部”，默认激活第一个分类；否则默认“全部”
+    if ( $filter_category === '' || ( $hide_all_category && $filter_category === '__all__' ) ) {
+        if ( $hide_all_category && ! empty( $categories_in_use ) ) {
+            $filter_category = $categories_in_use[0];
+        } else {
+            $filter_category = '__all__';
+        }
     }
 
     // 按分类排序应用：根据每个分类的自定义排序
@@ -176,15 +183,17 @@ function apps_exhibition_shortcode() {
                 </button>
                 <div class="filter-scroll">
                     <div class="filter-scroll-inner">
-                        <!-- "全部"分类按钮 -->
-                        <a class="filter-btn<?php echo ( $filter_category === '__all__' ) ? ' active' : ''; ?>"
-                           href="#"
-                           data-category="__all__"
-                           data-order=""
-                        >
-                            <?php echo Apps_Exhibition::get_category_icon_html( '__all__' ); ?>
-                            <span class="filter-text"><?php esc_html_e( '全部', 'apps-exhibition' ); ?></span>
-                        </a>
+                        <!-- "全部"分类按钮（开启隐藏开关时不渲染） -->
+                        <?php if ( ! $hide_all_category ) : ?>
+                            <a class="filter-btn<?php echo ( $filter_category === '__all__' ) ? ' active' : ''; ?>"
+                               href="#"
+                               data-category="__all__"
+                               data-order=""
+                            >
+                                <?php echo Apps_Exhibition::get_category_icon_html( '__all__' ); ?>
+                                <span class="filter-text"><?php esc_html_e( '全部', 'apps-exhibition' ); ?></span>
+                            </a>
+                        <?php endif; ?>
                         <?php foreach ( $categories_in_use as $category ) : ?>
                             <a class="filter-btn<?php echo ( $filter_category === $category ) ? ' active' : ''; ?>"
                                href="#"
@@ -204,13 +213,62 @@ function apps_exhibition_shortcode() {
         </div>
 
         <div class="apps-exhibition-list">
-            <?php foreach ( $all_apps as $app ) :
+            <?php
+            $display_apps = $all_apps;
+            if ( $filter_category !== '__all__' && ! empty( $sorted_apps_by_category[ $filter_category ] ) ) {
+                $ordered_ids = $sorted_apps_by_category[ $filter_category ];
+                $apps_by_id  = [];
+                foreach ( $all_apps as $app ) {
+                    $apps_by_id[ (int) $app['id'] ] = $app;
+                }
+                $sorted_display = [];
+                $used_ids       = [];
+                foreach ( $ordered_ids as $oid ) {
+                    if ( isset( $apps_by_id[ $oid ] ) ) {
+                        $sorted_display[] = $apps_by_id[ $oid ];
+                        $used_ids[ $oid ] = true;
+                    }
+                }
+                foreach ( $all_apps as $app ) {
+                    if ( empty( $used_ids[ (int) $app['id'] ] ) ) {
+                        $sorted_display[] = $app;
+                    }
+                }
+                $display_apps = $sorted_display;
+            }
+
+            $visible_count = 0;
+            foreach ( $display_apps as $app ) {
+                $app_cats_list = array_map( 'trim', explode( ',', $app['app_filter_category'] ) );
+                if ( $filter_category === '__all__' || in_array( $filter_category, $app_cats_list, true ) ) {
+                    $visible_count++;
+                }
+            }
+
+            if ( $visible_count === 0 && ! empty( $all_apps ) ) : ?>
+                <div class="no-results-message ae-empty-state">
+                    <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="9"/>
+                        <line x1="9" y1="10" x2="9.01" y2="10"/>
+                        <line x1="15" y1="10" x2="15.01" y2="10"/>
+                        <path d="M9.5 15.5a3.5 3.5 0 0 1 5 0"/>
+                    </svg>
+                    <p><?php esc_html_e( '该分类下暂无应用。', 'apps-exhibition' ); ?></p>
+                </div>
+            <?php endif;
+
+            foreach ( $display_apps as $app ) :
                 $downloads  = apps_exhibition_parse_downloads( $app['app_downloads'] );
                 $platforms  = explode(',', $app['app_platforms']);
                 $app_categories = explode(',', $app['app_filter_category']);
                 $app_categories_attr = implode(',', array_map('trim', $app_categories));
+                $app_cats_list = array_map( 'trim', $app_categories );
+                $is_hidden     = false;
+                if ( $filter_category !== '__all__' && ! in_array( $filter_category, $app_cats_list, true ) ) {
+                    $is_hidden = true;
+                }
                 ?>
-                <div class="apps-exhibition-item"
+                <div class="apps-exhibition-item<?php echo $is_hidden ? ' hidden' : ''; ?>"
                      data-id="<?php echo esc_attr( $app['id'] ); ?>"
                      data-categories="<?php echo esc_attr( $app_categories_attr ); ?>"
                      title="<?php echo esc_attr( $app['app_name'] ); ?>">

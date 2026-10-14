@@ -21,6 +21,9 @@ function apps_exhibition_uninstall_site() {
         'apps_exhibition_db_version',
         'apps_exhibition_filter_categories',
         'apps_exhibition_platform_categories',
+        'apps_exhibition_category_icons',
+        'apps_exhibition_platform_icons',
+        'apps_exhibition_hide_all_category',
         'apps_exhibition_category_order',
         'apps_exhibition_home_posters',
         // 旧版本使用的无前缀 key，保留清理以兼容未迁移的站点

@@ -256,6 +256,16 @@
     display: block;
 }
 
+#apps-exhibition-root .apps-exhibition-filter .filter-btn .ae-item-icon .ae-custom-icon-img {
+    width: 22px;
+    height: 22px;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 6px;
+}
+
 #apps-exhibition-root .apps-exhibition-filter .filter-btn:hover {
     background: #eef4ff;
     color: #1677ff;
@@ -329,11 +339,26 @@
 /* 空结果提示 */
 #apps-exhibition-root .no-results-message {
     grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 50px 20px;
     text-align: center;
-    padding: 40px 20px;
-    color: #666;
-    font-size: 16px;
+    color: #64748b;
+    font-size: 15px;
     margin: 0;
+}
+
+#apps-exhibition-root .no-results-message svg {
+    margin-bottom: 12px;
+    stroke: #94a3b8;
+}
+
+#apps-exhibition-root .no-results-message p {
+    margin: 0;
+    font-size: 15px;
+    color: #64748b;
 }
 
 /* --- 应用图标 --- */
@@ -460,6 +485,16 @@
     width: 16px;
     height: 16px;
     display: block;
+}
+
+#apps-exhibition-root .app-platform-tags .platform-tag .ae-item-icon .ae-custom-icon-img {
+    width: 16px;
+    height: 16px;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+    border-radius: 3px;
 }
 
 #apps-exhibition-root .app-platform-tags .platform-tag:hover {

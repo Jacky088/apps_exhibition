@@ -125,7 +125,7 @@
                 if (id) itemsById[id] = item;
             });
 
-            function filterByCategory(btn) {
+            function filterByCategory(btn, isInitial) {
                 var selectedCategory = btn.getAttribute('data-category');
                 var orderStr = btn.getAttribute('data-order') || '';
                 var orderIds = orderStr ? orderStr.split(',').map(function(s) { return s.trim(); }) : [];
@@ -135,14 +135,16 @@
                 btn.classList.add('active');
                 scrollActiveFilterIntoView(btn);
 
-                // URL 联动
-                var url = new URL(window.location);
-                if (selectedCategory === '__all__') {
-                    url.searchParams.delete('category');
-                } else {
-                    url.searchParams.set('category', selectedCategory);
+                // URL 联动（初次加载时不向浏览器历史 pushState）
+                if (!isInitial) {
+                    var url = new URL(window.location);
+                    if (selectedCategory === '__all__') {
+                        url.searchParams.delete('category');
+                    } else {
+                        url.searchParams.set('category', selectedCategory);
+                    }
+                    history.pushState(null, '', url);
                 }
-                history.pushState(null, '', url);
 
                 // 使用 DocumentFragment 批量操作 DOM
                 var fragment = document.createDocumentFragment();
@@ -211,13 +213,11 @@
                 // 一次性将 fragment 插入 DOM
                 appsList.appendChild(fragment);
 
-                // 无结果提示
+                // 无结果精致空状态提示
                 if (visibleCount === 0) {
-                    var noResultsMsg = document.createElement('p');
-                    noResultsMsg.className = 'no-results-message';
-                    noResultsMsg.textContent = (typeof appsExhibitionFront !== 'undefined')
-                        ? appsExhibitionFront.noResults
-                        : '没有找到符合条件的应用。';
+                    var noResultsMsg = document.createElement('div');
+                    noResultsMsg.className = 'no-results-message ae-empty-state';
+                    noResultsMsg.innerHTML = '<svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#94a3b8" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><line x1="9" y1="10" x2="9.01" y2="10"/><line x1="15" y1="10" x2="15.01" y2="10"/><path d="M9.5 15.5a3.5 3.5 0 0 1 5 0"/></svg><p>' + ((typeof appsExhibitionFront !== 'undefined' && appsExhibitionFront.noResults) ? appsExhibitionFront.noResults : '该分类下暂无应用。') + '</p>';
                     appsList.appendChild(noResultsMsg);
                 }
             }
@@ -226,27 +226,34 @@
             filterButtons.forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.preventDefault();
-                    filterByCategory(this);
+                    filterByCategory(this, false);
                 });
             });
 
             // 监听浏览器前进/后退
             window.addEventListener('popstate', function() {
                 var urlParams = new URLSearchParams(window.location.search);
-                var cat = urlParams.get('category') || '__all__';
+                var cat = urlParams.get('category');
                 var targetBtn = null;
 
-                filterButtons.forEach(function(btn) {
-                    if (btn.getAttribute('data-category') === cat) {
-                        targetBtn = btn;
-                    }
-                });
+                if (cat) {
+                    filterButtons.forEach(function(btn) {
+                        if (btn.getAttribute('data-category') === cat) {
+                            targetBtn = btn;
+                        }
+                    });
+                } else {
+                    filterButtons.forEach(function(btn) {
+                        if (btn.getAttribute('data-category') === '__all__') {
+                            targetBtn = btn;
+                        }
+                    });
+                }
 
                 if (targetBtn) {
-                    filterByCategory(targetBtn);
-                } else {
-                    var firstBtn = filterButtons[0];
-                    if (firstBtn) filterByCategory(firstBtn);
+                    filterByCategory(targetBtn, true);
+                } else if (filterButtons.length > 0) {
+                    filterByCategory(filterButtons[0], true);
                 }
             });
 
@@ -267,8 +274,12 @@
                 activeBtn = document.querySelector('.apps-exhibition-filter .filter-btn.active');
             }
 
+            if (!activeBtn && filterButtons.length > 0) {
+                activeBtn = filterButtons[0];
+            }
+
             if (activeBtn) {
-                filterByCategory(activeBtn);
+                filterByCategory(activeBtn, true);
             }
         }
 

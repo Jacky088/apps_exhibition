@@ -4,6 +4,8 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 $plugin = Apps_Exhibition::get_instance();
 $platform_options = $plugin->get_platform_categories();
 $filter_categories = $plugin->get_filter_categories();
+$category_icons = $plugin->get_category_icons();
+$platform_icons = $plugin->get_platform_icons();
 
 $current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'apps';
 
@@ -390,6 +392,12 @@ if ( isset( $_GET['message'] ) ) {
                                                     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                                 </svg>
                                             </button>
+                                            <button type="button" class="ae-square-btn ae-square-btn-clone ae-clone-btn" title="<?php esc_attr_e( '复制应用', 'apps-exhibition' ); ?>">
+                                                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                </svg>
+                                            </button>
                                             <a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=apps_exhibition_delete&id=' . $app['id'] ), 'apps_exhibition_delete_' . $app['id'] ) ); ?>" class="ae-square-btn ae-square-btn-delete ae-delete-btn" title="<?php esc_attr_e( '删除', 'apps-exhibition' ); ?>">
                                                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2">
                                                     <polyline points="3 6 5 6 21 6"></polyline>
@@ -667,6 +675,19 @@ if ( isset( $_GET['message'] ) ) {
             <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
                 <?php wp_nonce_field( 'apps_exhibition_filter_categories' ); ?>
                 <input type="hidden" name="action" value="apps_exhibition_save_filter_categories">
+
+                <!-- 隐藏前台全部分类 开关 -->
+                <div class="ae-switch-row">
+                    <div class="ae-switch-info">
+                        <label for="hide_all_category" class="ae-switch-label"><?php esc_html_e( '隐藏前台“全部”分类', 'apps-exhibition' ); ?></label>
+                        <p class="ae-switch-desc"><?php esc_html_e( '开启后前台不再显示“全部”标签，首屏默认激活排序第一项的分类。', 'apps-exhibition' ); ?></p>
+                    </div>
+                    <label class="ae-switch">
+                        <input type="checkbox" name="hide_all_category" id="hide_all_category" value="1" <?php checked( Apps_Exhibition::is_hide_all_category() ); ?>>
+                        <span class="ae-switch-slider"></span>
+                    </label>
+                </div>
+
                 <div class="ae-cat-editor" data-cat-editor>
                     <div class="ae-cat-add-bar">
                         <input type="text" class="ae-input ae-cat-add-input" placeholder="<?php esc_attr_e( '输入分类名称后回车或点「添加」', 'apps-exhibition' ); ?>" />
@@ -674,8 +695,10 @@ if ( isset( $_GET['message'] ) ) {
                     </div>
                     <ul class="ae-cat-list<?php echo empty( $filter_categories ) ? '' : ' has-items'; ?>">
                         <li class="ae-cat-empty"><?php esc_html_e( '暂无分类，请在上方输入后点「添加」', 'apps-exhibition' ); ?></li>
-                        <?php foreach ( $filter_categories as $category ) : ?>
-                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $category ); ?>">
+                        <?php foreach ( $filter_categories as $category ) :
+                            $cat_icon = $category_icons[ $category ] ?? '';
+                        ?>
+                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $category ); ?>" data-icon="<?php echo esc_attr( $cat_icon ); ?>">
                                 <span class="ae-cat-drag" title="<?php esc_attr_e( '拖拽排序', 'apps-exhibition' ); ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                         <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
@@ -683,9 +706,27 @@ if ( isset( $_GET['message'] ) ) {
                                         <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
                                     </svg>
                                 </span>
-                                <?php echo Apps_Exhibition::get_category_icon_html( $category ); ?>
+                                <div class="ae-cat-icon-wrap" title="<?php esc_attr_e( '点击更换图标', 'apps-exhibition' ); ?>">
+                                    <?php echo Apps_Exhibition::get_category_icon_html( $category ); ?>
+                                    <span class="ae-cat-icon-badge" title="<?php esc_attr_e( '更换图标', 'apps-exhibition' ); ?>">
+                                        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                    </span>
+                                </div>
                                 <span class="ae-cat-name"><?php echo esc_html( $category ); ?></span>
                                 <span class="ae-cat-actions">
+                                    <button type="button" class="ae-cat-action-btn ae-cat-icon-upload" title="<?php esc_attr_e( '更换图标', 'apps-exhibition' ); ?>">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                            <polyline points="21 15 16 10 5 21"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button type="button" class="ae-cat-action-btn ae-cat-icon-reset" title="<?php esc_attr_e( '恢复默认图标', 'apps-exhibition' ); ?>" style="<?php echo empty( $cat_icon ) ? 'display:none;' : ''; ?>">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                        </svg>
+                                    </button>
                                     <button type="button" class="ae-cat-action-btn ae-cat-edit" title="<?php esc_attr_e( '修改', 'apps-exhibition' ); ?>">
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -704,6 +745,7 @@ if ( isset( $_GET['message'] ) ) {
                     </ul>
                     <input type="hidden" name="filter_categories" class="ae-cat-value" value="<?php echo esc_attr( implode( "\n", $filter_categories ) ); ?>" />
                     <input type="hidden" name="filter_category_renames" class="ae-cat-renames" value="" />
+                    <input type="hidden" name="filter_category_icons" class="ae-cat-icons-input" value="<?php echo esc_attr( wp_json_encode( $category_icons ) ); ?>" />
                 </div>
                 <div class="ae-settings-card-footer">
                     <button type="submit" class="ae-btn ae-btn-primary">
@@ -748,8 +790,10 @@ if ( isset( $_GET['message'] ) ) {
                     </div>
                     <ul class="ae-cat-list<?php echo empty( $platform_options ) ? '' : ' has-items'; ?>">
                         <li class="ae-cat-empty"><?php esc_html_e( '暂无平台，请在上方输入后点「添加」', 'apps-exhibition' ); ?></li>
-                        <?php foreach ( $platform_options as $platform ) : ?>
-                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $platform ); ?>">
+                        <?php foreach ( $platform_options as $platform ) :
+                            $plat_icon = $platform_icons[ $platform ] ?? '';
+                        ?>
+                            <li class="ae-cat-item" data-origin="<?php echo esc_attr( $platform ); ?>" data-icon="<?php echo esc_attr( $plat_icon ); ?>">
                                 <span class="ae-cat-drag" title="<?php esc_attr_e( '拖拽排序', 'apps-exhibition' ); ?>">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                         <circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/>
@@ -757,9 +801,27 @@ if ( isset( $_GET['message'] ) ) {
                                         <circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/>
                                     </svg>
                                 </span>
-                                <?php echo Apps_Exhibition::get_platform_icon_html( $platform ); ?>
+                                <div class="ae-cat-icon-wrap" title="<?php esc_attr_e( '点击更换图标', 'apps-exhibition' ); ?>">
+                                    <?php echo Apps_Exhibition::get_platform_icon_html( $platform ); ?>
+                                    <span class="ae-cat-icon-badge" title="<?php esc_attr_e( '更换图标', 'apps-exhibition' ); ?>">
+                                        <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                                    </span>
+                                </div>
                                 <span class="ae-cat-name"><?php echo esc_html( $platform ); ?></span>
                                 <span class="ae-cat-actions">
+                                    <button type="button" class="ae-cat-action-btn ae-cat-icon-upload" title="<?php esc_attr_e( '更换图标', 'apps-exhibition' ); ?>">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                            <polyline points="21 15 16 10 5 21"></polyline>
+                                        </svg>
+                                    </button>
+                                    <button type="button" class="ae-cat-action-btn ae-cat-icon-reset" title="<?php esc_attr_e( '恢复默认图标', 'apps-exhibition' ); ?>" style="<?php echo empty( $plat_icon ) ? 'display:none;' : ''; ?>">
+                                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                                            <path d="M3 3v5h5"></path>
+                                        </svg>
+                                    </button>
                                     <button type="button" class="ae-cat-action-btn ae-cat-edit" title="<?php esc_attr_e( '修改', 'apps-exhibition' ); ?>">
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -778,6 +840,7 @@ if ( isset( $_GET['message'] ) ) {
                     </ul>
                     <input type="hidden" name="platform_categories" class="ae-cat-value" value="<?php echo esc_attr( implode( "\n", $platform_options ) ); ?>" />
                     <input type="hidden" name="platform_category_renames" class="ae-cat-renames" value="" />
+                    <input type="hidden" name="platform_category_icons" class="ae-cat-icons-input" value="<?php echo esc_attr( wp_json_encode( $platform_icons ) ); ?>" />
                 </div>
                 <div class="ae-settings-card-footer">
                     <button type="submit" class="ae-btn ae-btn-primary">
